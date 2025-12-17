@@ -6,6 +6,7 @@ export const gameTextures = {
         "44FF",
         "FF44"
     ],
+    "bg": ["2"],
     "player": [
         "FFFF",
         "F44F",
@@ -13,7 +14,6 @@ export const gameTextures = {
         "F44F",
         "FFFF",
     ],
-    "w": ["F"]
 }
 
 // export const textureIndexes = ["wall","brick","test1","test2","player","w"]
