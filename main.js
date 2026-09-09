@@ -356,6 +356,11 @@ class Main {
     constructor() {
         this.loaded = false;
 
+        this.settings = {
+            dithering: true,
+            colourScheme: 0,
+        }
+
         this.deltaTime = 1
         this.lastTime = 0
         this.fps = 0
@@ -390,7 +395,7 @@ class Main {
 
         this.loadTextures();
 
-        this.ui = new UiController();
+        this.ui = new UiController(this);
 
         requestAnimationFrame(this.update.bind(this));
 
@@ -490,7 +495,7 @@ class Main {
         // user interface
         this.ui.draw(this.ctx);
         
-        if (!this.player.pressedInputs.down.active) {
+        if (this.settings.dithering) {
             this.dither();
         }
 
@@ -498,17 +503,12 @@ class Main {
 
     dither() {
         
-        const dark  = {r:5, g:28, b:12} // #051c0c (Dark Forest Green) 
-        const light = {r:51, g:255, b:102}// #33ff66 (Terminal Green)
-
-        // const dark  = {r:43, g:27, b:61}// #2b1b3d (Plum Purple) 
-        // const light = {r:246, g:240, b:207}// #f6f0cf (Butter Yellow)
-
-        // const dark  = {r:18, g:12, b:0} // #120c00 (Deep Brown-Black)
-        // const light = {r:255, g:176, b:0} // #ffb000 (Classic Amber)
-
-        // const dark = {r:15, g:26, b:44} // #0f1a2c (Dark Navy)
-        // const light = {r:238, g:242, b:247} // #eef2f7 (Ice White)
+        const colour = [
+            {dark: {r:5, g:28, b:12}, light: {r:51, g:255, b:102}}, // #051c0c (Dark Forest Green) and #33ff66 (Terminal Green)
+            {dark: {r:43, g:27, b:61}, light: {r:246, g:240, b:207}}, // #2b1b3d (Plum Purple) and #f6f0cf (Butter Yellow)
+            {dark: {r:18, g:12, b:0}, light: {r:255, g:176, b:0}}, // #120c00 (Deep Brown-Black) and #ffb000 (Classic Amber)
+            {dark: {r:15, g:26, b:44}, light: {r:238, g:242, b:247}}, // #0f1a2c (Dark Navy) and #eef2f7 (Ice White)
+        ][this.settings.colourScheme];
 
         const width = this.screen.width
         const height = this.screen.height
@@ -549,9 +549,9 @@ class Main {
 
                 const d = m[(y+4)%size][(x+4)%size]
 
-                imageData.data[i - 4] = d * 255 > brightness ? dark.r : light.r //r
-                imageData.data[i - 3] = d * 255 > brightness ? dark.g : light.g //g
-                imageData.data[i - 2] = d * 255 > brightness ? dark.b : light.b //b
+                imageData.data[i - 4] = d * 255 > brightness ? colour.dark.r : colour.light.r //r
+                imageData.data[i - 3] = d * 255 > brightness ? colour.dark.g : colour.light.g //g
+                imageData.data[i - 2] = d * 255 > brightness ? colour.dark.b : colour.light.b //b
                 // imageData[i+3] //a
 
             }
