@@ -5,10 +5,13 @@ export class UiController {
     constructor(main) {
 
         this.main = main;
-
-        this.activeScreen = undefined
-
-        this.screens = []
+        
+        this.activeScreen = undefined;
+        this.lastScreen = undefined;
+        
+        this.screens = [];
+        this.gameScreen = undefined;
+        this.pauseMenuScreen = undefined;
 
         this.createScreens();
 
@@ -20,7 +23,7 @@ export class UiController {
             down: false
         }
 
-
+        
 
         const gameWindow = document.getElementById("gameCanvas");
 
@@ -63,7 +66,11 @@ export class UiController {
             "KeyW": "up",
             "KeyS": "down",
             "KeyA": "left",
-            "KeyD": "right"
+            "KeyD": "right",
+            "ArrowUp": "up",
+            "ArrowDown": "down",
+            "ArrowLeft": "left",
+            "ArrowRight": "right",
         }[event.code];
 
         if (direction != undefined && selectedElement.nextElement[direction] != undefined) {
@@ -98,6 +105,9 @@ export class UiController {
         const settingsScreen = new UiScreen(this, "Settings");
         const pauseMenuScreen = new UiScreen(this, "Pause Menu");
         const gameScreen = new UiScreen(this, "Game");
+        
+        this.gameScreen = gameScreen;
+        this.pauseMenuScreen = pauseMenuScreen
 
         this.activeScreen = mainMenuScreen
 
@@ -105,14 +115,13 @@ export class UiController {
             const mainMenuTitle = new UiElement(mainMenuScreen, "Game Name", 3,0, 6,1);
 
             const startGameButton = new UiButton(mainMenuScreen, "Start Game", 1,2, 6,1);
-            startGameButton.action = () => { this.activeScreen = gameScreen; }
+            startGameButton.action = () => { this.goToScreen(gameScreen); }
 
             const settingsButton = new UiButton(mainMenuScreen, "Settings", 1,4, 6,1);
-            settingsButton.action = () => { this.activeScreen = settingsScreen; }
+            settingsButton.action = () => { this.goToScreen(settingsScreen); }
 
             const exitButton = new UiButton(mainMenuScreen, "Exit", 1,6, 6,1);
-            exitButton.action = () => { close(); }
-
+            exitButton.action = () => { window.location.reload(); /*close();*/ }
 
             startGameButton.nextElement = {
                 down: settingsButton
@@ -128,7 +137,7 @@ export class UiController {
             };
 
 
-            mainMenuScreen.backAction = () => { close(); }
+            mainMenuScreen.backAction = () => { window.location.reload(); /*close();*/ }
 
         // settings menu
             const settingsTitle = new UiElement(settingsScreen, "Settings", 3,0, 6,1);
@@ -150,7 +159,7 @@ export class UiController {
 
 
             const backButton = new UiButton(settingsScreen, "Back", 8,8, 4,1);
-            backButton.action = () => { this.activeScreen = mainMenuScreen; }
+            backButton.action = () => { this.goBackAScreen(); }
 
 
 
@@ -173,33 +182,75 @@ export class UiController {
 
 
 
-            settingsScreen.backAction = () => { this.activeScreen = mainMenuScreen; }
+
+            settingsScreen.backAction = () => { this.goBackAScreen(); }
 
         // pause menu
-            const pauseTitle = new UiElement(pauseMenuScreen, "Game Paused", 3,0, 6,1);
+            const pauseTitle = new UiElement(pauseMenuScreen, "Game Paused", 2.5,0, 7,1);
 
-            const resumeButton = new UiButton(pauseMenuScreen, "Resume", 4,2, 4,2);
-            resumeButton.action = () => { this.activeScreen = gameScreen; }
+            const resumeButton = new UiButton(pauseMenuScreen, "Resume", 3,2, 6,2);
+            resumeButton.action = () => { this.goToScreen(gameScreen); }
 
+            const pauseSettingsButton = new UiButton(pauseMenuScreen, "Settings", 3,5, 6,1);
+            pauseSettingsButton.action = () => { this.goToScreen(settingsScreen); }
 
+            const mainMenuButton = new UiButton(pauseMenuScreen, "Exit without saving", 1.5,7, 9,1);
+            mainMenuButton.action = () => { this.goToScreen(mainMenuScreen); };
 
-            pauseMenuScreen.backAction = () => { this.activeScreen = gameScreen; }
+            resumeButton.nextElement = {
+                down: pauseSettingsButton
+            }
+
+            pauseSettingsButton.nextElement = {
+                up: resumeButton,
+                down: mainMenuButton,
+            }
+
+            mainMenuButton.nextElement = {
+                up: pauseSettingsButton
+            }
+
+            pauseMenuScreen.backAction = () => { this.goBackAScreen(); }
 
         // game screen
             const healthBar = new UiElement(gameScreen, "Health", 0.3,0.3, 4,1);
 
 
-            gameScreen.backAction = () => { this.activeScreen = pauseMenuScreen; }
+            gameScreen.backAction = () => { this.goToScreen(pauseMenuScreen); }
     
     }
 
+    goToScreen(screen) {
+        this.lastScreen = this.activeScreen;
+        this.activeScreen = screen;
+    }
+
+    goBackAScreen() {
+        [this.activeScreen, this.lastScreen] = [this.lastScreen, this.activeScreen]
+    }
+
     tick() {
+
+        const paused = this.activeScreen != this.gameScreen;
+
+        if (!document.hasFocus() && !paused) {
+            this.goToScreen(this.pauseMenuScreen)
+        }
 
         this.inputMode = this.activeScreen.tick(this.mouse, this.keyboard, this.inputMode);
 
     }
 
     draw(ctx) {
+
+        const paused = this.activeScreen != this.gameScreen;
+
+        if (paused) {
+            ctx.fillStyle = "#000";
+            ctx.globalAlpha = 0.5;
+            ctx.fillRect(0, 0, ctx.canvas.width, ctx.canvas.height);
+            ctx.globalAlpha = 1.0;
+        }
 
         this.activeScreen.draw(ctx);
 

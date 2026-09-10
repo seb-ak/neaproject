@@ -440,31 +440,53 @@ class Main {
             }
         }
 
-        for (const level of Object.values(this.level)) level.tick(this.deltaTime);
+        if (this.player.initialSpawn) {
+            this.player.spawn(this.level[this.player.level]);
+        }
 
-        this.player.tick(this.deltaTime, this.level[this.player.level])
+        const paused = this.ui.activeScreen != this.ui.gameScreen;
 
-        // move camera //
+        if (!paused) {
+        
+            for (const level of Object.values(this.level)) level.tick(this.deltaTime);
+    
+            this.player.tick(this.deltaTime, this.level[this.player.level])
 
-        const vel = new vec3(
-            this.player.velocity.x / 6 * (this.player.isDashing? 1.2 : 1),
-            0,//this.player.velocity.y / 30,
-            this.player.velocity.z / 30
-        )
-        const diff = this.player.location
-            .add(new vec3(0,1.5,0))
-            .add(vel)
-            .sub(this.camera.location)
-            .div(8)
-            .mult(this.deltaTime*60)
 
-        this.camera.location.x += diff.x
-        this.camera.location.y += diff.y
-        // this.camera.fov = (this.player.isDashing? 71 : 70)
-        this.camera.fov = Math.abs(this.player.velocity) > 5? 71 : 70
+            // move camera //
+            const vel = new vec3(
+                this.player.velocity.x / 6 * (this.player.isDashing? 1.2 : 1),
+                0,//this.player.velocity.y / 30,
+                -4
+            )
+            const diff = this.player.location
+                .add(new vec3(0,1.5,0))
+                .add(vel)
+                .sub(this.camera.location)
+                .div(8)
+                .mult(this.deltaTime*60)
+    
+            this.camera.location.x += diff.x
+            this.camera.location.y += diff.y
+            this.camera.location.z += diff.z
+            // this.camera.fov = (this.player.isDashing? 71 : 70)
+            this.camera.fov = Math.abs(this.player.velocity) > 5? 71 : 70
+        
+        } else {
+            this.camera.location = this.player.location.add(
+                new vec3(this.ui.mouse.x, this.ui.mouse.y + 1.5, 0).mult(0.001)
+            )
+            this.camera.location.z = -7;
 
-        // this.camera.location.x = obj.location.x
-        // this.camera.location.y = obj.location.y+1.5
+            // this.camera.location = new vec3(15,10,-7).add(
+            //     new vec3(this.ui.mouse.x, this.ui.mouse.y, 0).mult(0.001)
+            // )
+
+        }
+
+
+
+        
 
         this.ui.tick()
         
