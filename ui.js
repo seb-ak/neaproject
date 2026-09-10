@@ -104,6 +104,7 @@ export class UiController {
         const mainMenuScreen = new UiScreen(this, "Main Menu");
         const settingsScreen = new UiScreen(this, "Settings");
         const pauseMenuScreen = new UiScreen(this, "Pause Menu");
+        const areYouSureScreen = new UiScreen(this, "Are you sure?");
         const gameScreen = new UiScreen(this, "Game");
         
         this.gameScreen = gameScreen;
@@ -194,8 +195,8 @@ export class UiController {
             const pauseSettingsButton = new UiButton(pauseMenuScreen, "Settings", 3,5, 6,1);
             pauseSettingsButton.action = () => { this.goToScreen(settingsScreen); }
 
-            const mainMenuButton = new UiButton(pauseMenuScreen, "Exit without saving", 1.5,7, 9,1);
-            mainMenuButton.action = () => { this.goToScreen(mainMenuScreen); };
+            const mainMenuButton = new UiButton(pauseMenuScreen, "Exit", 3,7, 6,1);
+            mainMenuButton.action = () => { this.goToScreen(areYouSureScreen); };
 
             resumeButton.nextElement = {
                 down: pauseSettingsButton
@@ -211,6 +212,26 @@ export class UiController {
             }
 
             pauseMenuScreen.backAction = () => { this.goBackAScreen(); }
+
+        // are you sure screen
+            const areYouSureTitle = new UiElement(areYouSureScreen, "Are you sure?", 2.5,0, 7,1);
+            const areYouSureSubtitleLine1 = new UiElement(areYouSureScreen, "you will lose all", 2.5,2, 7,1);
+            const areYouSureSubtitleLine2 = new UiElement(areYouSureScreen, "of your progress!", 2.5,3, 7,1);
+
+            const areYouSureBackButton = new UiButton(areYouSureScreen, "Back", 8,7, 3,1);
+            areYouSureBackButton.action = () => { this.goBackAScreen(); }
+
+            const areYouSureYes = new UiButton(areYouSureScreen, "Yes", 2,7, 3,1)
+            areYouSureYes.action = () => { window.location.reload(); }
+
+            
+            areYouSureYes.nextElement = {
+                right: areYouSureBackButton
+            }
+
+            areYouSureBackButton.nextElement = {
+                left: areYouSureYes
+            }
 
         // game screen
             const healthBar = new UiElement(gameScreen, "Health", 0.3,0.3, 4,1);
@@ -384,8 +405,8 @@ class UiElement {
         const borderWidth = this.borderWidth 
             * ((this.selected && this.type != "none") ? 2 : 1) 
             * ((this.hovered && this.type != "none") ? 2 : 1);
-        const borderBrightness = this.borderBrightness;
-        
+        const borderBrightness = this.borderBrightness * (((this.hovered || this.selected) && this.type != "none") ? 1.5 : 1);
+
         const backgroundBrightness = this.backgroundBrightness 
             * ((this.hovered && this.type != "none") ? 2 : 1);
 
