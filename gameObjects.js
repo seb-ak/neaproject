@@ -4,12 +4,6 @@ export class gameObject {
     constructor(location) {
         this.type = ""
         this.location = location
-        this.collision = {
-            up:true,
-            down:true,
-            left:true,
-            right:true,
-        };
         this.size = new vec3(1,1,1);
         this.collision = false;
 
@@ -137,10 +131,94 @@ export class SpawnPoint extends gameObject {
 }
 
 
+class entity extends gameObject {
+
+    constructor(location) {
+        super(location)
+
+        this.velocity = new vec3(0, 0, 0);
+        this.deceleration = new vec3(0.1, 0.1, 0.1);
+        this.isOnFloor = false;
+        this.baseGravity = 0.5;
+
+    }
+
+    resolveX(obj) {
+        if (!obj.collision) return;
+        if (!this.isCollidingWith(obj)) return;
+
+        const thisCenter = this.getPoint().center
+        const objCenter = obj.getPoint().center
+
+        const overlap = new vec3(
+            (this.size.x/2 + obj.size.x/2) - Math.abs(thisCenter.x - objCenter.x),
+            (this.size.y/2 + obj.size.y/2) - Math.abs(thisCenter.y - objCenter.y)
+        )
+        if (overlap.x <= 0.001 || overlap.y <= 0.001) return;
+
+        const dir = (thisCenter.x < objCenter.x) ? -1 : 1
+        this.location.x += overlap.x * dir
+        this.velocity.x = 0;
+    }
+    resolveY(obj) {
+        if (!obj.collision) return;
+        if (!this.isCollidingWith(obj)) return;
+
+        const thisCenter = this.getPoint().center
+        const objCenter = obj.getPoint().center
+
+        const overlap = new vec3(
+            (this.size.x/2 + obj.size.x/2) - Math.abs(thisCenter.x - objCenter.x),
+            (this.size.y/2 + obj.size.y/2) - Math.abs(thisCenter.y - objCenter.y)
+        )
+        if (overlap.x <= 0.001 || overlap.y <= 0.001) return;
+
+        const dir = (thisCenter.y < objCenter.y) ? -1 : 1
+        this.location.y += overlap.y * dir
+        this.velocity.y = 0;
+        if (dir === 1) this.isOnFloor = true;
+    }
+    doCollision(deltaTime, level) {
+        this.isOnFloor = false;
+
+        this.collisionObjects = this.getCollisionObjects(level);
+
+        const steps = Math.ceil(Math.max(
+            Math.abs(this.velocity.x * deltaTime) / this.size.x, 
+            Math.abs(this.velocity.y * deltaTime) / this.size.y
+        ))
+        logError(`movement steps: ${steps}`)
+        
+        for (let i=0; i<steps; i++) {
+
+            this.location.x += this.velocity.x * deltaTime / steps;
+            for (const obj of this.collisionObjects) { this.resolveX(obj); }
+
+            this.isOnFloor = false;
+            this.location.y += this.velocity.y * deltaTime / steps;
+            for (const obj of this.collisionObjects) { this.resolveY(obj); }
+
+        }
+    }
+    checkCollisions(objects) {
+        for (const obj of objects) {
+            if (!obj.collision) continue;
+            if (this.isCollidingWith(obj)) return true;
+        }
+        return false;
+    }
+
+    getCollisionObjects(level) {
+        return [...level.objects.filter(obj => obj !== this),...level.getCloseTo(this)]
+    }
+
+}
+
+
 // cant slide while dashing
 // dash has less force when on floor
 // attacks are ground slam and slide kick
-export class Player extends gameObject {
+export class Player extends entity {
     constructor(location) {
         super(location)
         this.initialSpawn = true;
@@ -192,7 +270,7 @@ export class Player extends gameObject {
         this.maxCyoteTime = 200;
         
         this.velocity = new vec3(0, 0, 0);
-        this.onFloor = false;
+        this.isOnFloor = false;
 
         this.acceleration = new vec3(0.05, 0, 0)
         this.deceleration = new vec3(0.1, 0, 0)
@@ -288,7 +366,7 @@ export class Player extends gameObject {
             dx *= 5
         }
 
-        if (!this.onFloor) {
+        if (!this.isOnFloor) {
             dx *= 0.6
         }
 
@@ -309,28 +387,28 @@ export class Player extends gameObject {
         if (dx === 0 && this.velocity.x !== 0 && !this.isDashing) {
             let decelerate = this.deceleration.x * deltaTime * 144
             if (this.isSliding) decelerate *= 0.1
-            else if (!this.onFloor) decelerate *= 1.4
+            else if (!this.isOnFloor) decelerate *= 1.4
 
             if (this.velocity.x>0) this.velocity.x = Math.max(0, this.velocity.x - decelerate)
             if (this.velocity.x<0) this.velocity.x = Math.min(0, this.velocity.x + decelerate)
         }
 
         // if just hit floor decelerate
-        if (this.onFloor && !this.lastOnFloor) {
+        if (this.isOnFloor && !this.lastOnFloor) {
             let decelerate = this.deceleration.x * 2
             if (this.isSliding) decelerate = -1
 
             if (this.velocity.x>0) this.velocity.x = Math.max(0, this.velocity.x - decelerate)
             if (this.velocity.x<0) this.velocity.x = Math.min(0, this.velocity.x + decelerate)
         }
-        this.lastOnFloor = this.onFloor
+        this.lastOnFloor = this.isOnFloor
 
         ////////////////////
         // jumping logic //
         //////////////////
         if (this.cyoteTime > this.maxCyoteTime) this.cyoteTime = 0
         if (this.cyoteTime > 0) this.cyoteTime += deltaTime * 1000
-        else if (this.onFloor) this.cyoteTime = deltaTime * 1000
+        else if (this.isOnFloor) this.cyoteTime = deltaTime * 1000
         else this.cyoteTime = 0
         
         // hold jump to go higher
@@ -383,7 +461,7 @@ export class Player extends gameObject {
                 this.velocity.y = dashVector.y
             }
 
-        } else if (this.onFloor) {
+        } else if (this.isOnFloor) {
             this.canDash = true;
         }
 
@@ -400,11 +478,11 @@ export class Player extends gameObject {
             gravity = 0;
             logError("gravity: none");
         }        
-        else if (!this.onFloor && this.velocity.y < -threshold) { // increase gravity when falling
+        else if (!this.isOnFloor && this.velocity.y < -threshold) { // increase gravity when falling
             gravity*=1.2;
             logError("gravity: high");
         }
-        else if (!this.onFloor && this.velocity.y < threshold) { // decrease gravity at peak of jump
+        else if (!this.isOnFloor && this.velocity.y < threshold) { // decrease gravity at peak of jump
             gravity*=0.3;
             logError("gravity: low");
         }
@@ -415,84 +493,91 @@ export class Player extends gameObject {
 
         this.velocity.y -= gravity * deltaTime * 144
 
-        logError(`justJumped:${this.justJumped} gravity:${gravity.toFixed(3)} on floor:${this.onFloor} jump time:${this.jumpTime.toFixed(3)}`)
+        logError(`justJumped:${this.justJumped} gravity:${gravity.toFixed(3)} on floor:${this.isOnFloor} jump time:${this.jumpTime.toFixed(3)}`)
         logError(`vy:${this.velocity.y.toFixed(3)} xy:${this.velocity.x.toFixed(3)} x:${this.location.x.toFixed(3)} y:${this.location.y.toFixed(3)}`)
     }
     
-    resolveX(obj) {
-        if (!obj.collision) return;
-        if (!this.isCollidingWith(obj)) return;
-
-        const thisCenter = this.getPoint().center
-        const objCenter = obj.getPoint().center
-
-        const overlap = new vec3(
-            (this.size.x/2 + obj.size.x/2) - Math.abs(thisCenter.x - objCenter.x),
-            (this.size.y/2 + obj.size.y/2) - Math.abs(thisCenter.y - objCenter.y)
-        )
-        if (overlap.x <= 0.001 || overlap.y <= 0.001) return;
-
-        const dir = (thisCenter.x < objCenter.x) ? -1 : 1
-        this.location.x += overlap.x * dir
-        this.velocity.x = 0;
-    }
-    resolveY(obj) {
-        if (!obj.collision) return;
-        if (!this.isCollidingWith(obj)) return;
-
-        const thisCenter = this.getPoint().center
-        const objCenter = obj.getPoint().center
-
-        const overlap = new vec3(
-            (this.size.x/2 + obj.size.x/2) - Math.abs(thisCenter.x - objCenter.x),
-            (this.size.y/2 + obj.size.y/2) - Math.abs(thisCenter.y - objCenter.y)
-        )
-        if (overlap.x <= 0.001 || overlap.y <= 0.001) return;
-
-        const dir = (thisCenter.y < objCenter.y) ? -1 : 1
-        this.location.y += overlap.y * dir
-        this.velocity.y = 0;
-        if (dir === 1) this.onFloor = true;
-    }
-    doCollision(deltaTime, level) {
-        this.onFloor = false;
-
-        this.collisionObjects = [...level.objects.filter(obj => obj !== this),...level.getCloseTo(this)]
-
-        const steps = Math.ceil(Math.max(
-            Math.abs(this.velocity.x * deltaTime) / this.size.x, 
-            Math.abs(this.velocity.y * deltaTime) / this.size.y
-        ))
-        logError(`movement steps: ${steps}`)
-        
-        for (let i=0; i<steps; i++) {
-
-            this.location.x += this.velocity.x * deltaTime / steps;
-            for (const obj of this.collisionObjects) { this.resolveX(obj); }
-
-            this.onFloor = false;
-            this.location.y += this.velocity.y * deltaTime / steps;
-            for (const obj of this.collisionObjects) { this.resolveY(obj); }
-
-        }
-    }
-    checkCollisions(objects) {
-        for (const obj of objects) {
-            if (!obj.collision) continue;
-            if (this.isCollidingWith(obj)) return true;
-        }
-        return false;
-    }
 
     tick(deltaTime, level) {
         if (!level.loaded) return;
         if (this.initialSpawn) {this.spawn(level); this.initialSpawn = false;}
         
-        this.collisionObjects = [...level.objects.filter(obj => obj !== this),...level.getCloseTo(this)]
+        this.collisionObjects = this.getCollisionObjects(level);
         this.doInputs(deltaTime);
         
         this.doCollision(deltaTime, level);
 
         this.faces[0].vertices3d = this.getFaceVertecies("front");
     }
+}
+
+// one thats a goomba that jumps when you try to jump over it
+export class Enemy extends entity {
+
+    constructor(location) {
+        super(location);
+        this.location.z -= 0.5
+
+        this.type = "enemy";
+
+        this.enemyType = "goomba"
+        this.size = new vec3(1,1,1);
+        this.brightness = 1;
+        this.ticking = true;
+        
+        this.faces.push(new Quad(this.getFaceVertecies("front"), this.brightness))
+
+        this.location.z += this.size.z/2
+        
+        this.isOnFloor = false;
+
+        this.facingVector = new vec3(-1,0,0);
+        this.baseGravity = 0.5;
+
+        this.health = 1;
+
+        this.speed = 50;
+    }
+
+    tick(deltaTime, level) {
+        if (!level.loaded) return;
+
+        if (this.health > 0) this.movementLogic(deltaTime, level);
+        else {
+            
+            if (this.velocity.x>0) this.velocity.x = Math.max(0, this.velocity.x - this.deceleration.x)
+            else if (this.velocity.x<0) this.velocity.x = Math.min(0, this.velocity.x + this.deceleration.x)
+        
+            if (this.velocity.y>0) this.velocity.y = Math.max(0, this.velocity.y - this.deceleration.y)
+            else if (this.velocity.y<0) this.velocity.y = Math.min(0, this.velocity.y + this.deceleration.y)
+        
+        }
+        this.velocity.y -= this.baseGravity * deltaTime * 144
+
+
+        this.doCollision(deltaTime, level);
+
+
+        this.faces[0].vertices3d = this.getFaceVertecies("front");
+    }
+
+    movementLogic(deltaTime, level) {
+        if (!this.isOnFloor) return;
+
+
+        this.collisionObjects = this.getCollisionObjects(level);
+
+        const dx = this.facingVector.x * deltaTime * this.speed * 2
+
+        this.location.x += dx;
+
+        const switchDirection = this.checkCollisions(this.collisionObjects)
+        if (switchDirection) this.facingVector = this.facingVector.mult(-1);
+
+        this.location.x -= dx;
+
+        this.velocity.x = this.speed * this.facingVector.x * deltaTime
+        
+    }
+
 }

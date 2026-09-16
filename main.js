@@ -1,5 +1,5 @@
 import { logError, clearLog, vec3, loadImage, Quad } from "./utils.js";
-import { gameObject, levelTile, SpawnPoint, Player } from "./gameObjects.js";
+import { gameObject, levelTile, SpawnPoint, Player, Enemy } from "./gameObjects.js";
 import { UiController } from "./ui.js"
 
 class Level {
@@ -56,6 +56,10 @@ class Level {
                 
                 if (tile.hex === "#ff0000ff") {
                     this.objects.push( new SpawnPoint(new vec3(x*this.gridSize, y*this.gridSize, 0+this.gridSize)) );
+                }
+                
+                if (tile.hex === "#0000ffff") {
+                    this.objects.push( new Enemy(new vec3(x*this.gridSize, y*this.gridSize, 0+this.gridSize)) );
                 }
             }
         }
