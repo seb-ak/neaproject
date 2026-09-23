@@ -131,15 +131,22 @@ export class SpawnPoint extends gameObject {
 }
 
 
-class entity extends gameObject {
+class physicsObject extends gameObject {
 
     constructor(location) {
         super(location)
+
+        this.isPhysicsObject = true;
+
+        this.health = 1;
 
         this.velocity = new vec3(0, 0, 0);
         this.deceleration = new vec3(0.1, 0.1, 0.1);
         this.isOnFloor = false;
         this.baseGravity = 0.5;
+
+        this.doesPlatformVelocity = false;
+        this.platformVelocity = new vec3(0, 0, 0);
 
     }
 
@@ -159,6 +166,14 @@ class entity extends gameObject {
         const dir = (thisCenter.x < objCenter.x) ? -1 : 1
         this.location.x += overlap.x * dir
         this.velocity.x = 0;
+
+        if (dir==1) this.collidingSides.right = true;
+        if (dir==-1) this.collidingSides.left = true;
+
+        if (this.doesPlatformVelocity) {
+            if (obj.isPhysicsObject) this.touchingPhysicsObjects.push(obj)//this.platformVelocity = obj.velocity
+            // else this.platformVelocity = new vec3(0, 0, 0);
+        }
     }
     resolveY(obj) {
         if (!obj.collision) return;
@@ -177,28 +192,50 @@ class entity extends gameObject {
         this.location.y += overlap.y * dir
         this.velocity.y = 0;
         if (dir === 1) this.isOnFloor = true;
+
+        if (dir==1) this.collidingSides.bottom = true;
+        if (dir==-1) this.collidingSides.top = true;
+
+        if (this.doesPlatformVelocity) {
+            if (obj.isPhysicsObject) this.touchingPhysicsObjects.push(obj)//this.platformVelocity = obj.velocity
+            // else this.platformVelocity = new vec3(0, 0, 0);
+        }
     }
     doCollision(deltaTime, level) {
         this.isOnFloor = false;
 
         this.collisionObjects = this.getCollisionObjects(level);
+        logError(`${this.type} collisions: ${this.collisionObjects.length}`)
+
+        const velocity = this.velocity.add(this.platformVelocity);
 
         const steps = Math.ceil(Math.max(
-            Math.abs(this.velocity.x * deltaTime) / this.size.x, 
-            Math.abs(this.velocity.y * deltaTime) / this.size.y
+            Math.abs(velocity.x * deltaTime) / this.size.x,
+            Math.abs(velocity.y * deltaTime) / this.size.y
         ))
-        logError(`movement steps: ${steps}`)
+        // logError(`${this.type} movement steps: ${steps}`)
         
+        this.touchingPhysicsObjects = [];
+        this.isOnFloor = false;
+        this.collidingSides = {left:false, right:false, top:false, bottom:false}
+
         for (let i=0; i<steps; i++) {
 
-            this.location.x += this.velocity.x * deltaTime / steps;
+            this.location.x += velocity.x * deltaTime / steps;
             for (const obj of this.collisionObjects) { this.resolveX(obj); }
 
-            this.isOnFloor = false;
-            this.location.y += this.velocity.y * deltaTime / steps;
+            this.location.y += velocity.y * deltaTime / steps;
             for (const obj of this.collisionObjects) { this.resolveY(obj); }
 
         }
+
+        if (this.collidingSides.left && this.collidingSides.right) this.health = 0;
+        if (this.collidingSides.top && this.collidingSides.bottom) this.health = 0;
+
+        const obj = this.touchingPhysicsObjects[0];
+        if (obj) this.platformVelocity = obj.velocity;
+        else this.platformVelocity = new vec3(0, 0, 0);
+
     }
     checkCollisions(objects) {
         for (const obj of objects) {
@@ -209,7 +246,7 @@ class entity extends gameObject {
     }
 
     getCollisionObjects(level) {
-        return [...level.objects.filter(obj => obj !== this),...level.getCloseTo(this)]
+        return [...level.objects.filter(obj => (obj !== this && obj.collision)),...level.getCloseTo(this)]
     }
 
 }
@@ -218,7 +255,7 @@ class entity extends gameObject {
 // cant slide while dashing
 // dash has less force when on floor
 // attacks are ground slam and slide kick
-export class Player extends entity {
+export class Player extends physicsObject {
     constructor(location) {
         super(location)
         this.initialSpawn = true;
@@ -270,9 +307,10 @@ export class Player extends entity {
         this.maxCyoteTime = 200;
         
         this.velocity = new vec3(0, 0, 0);
+        this.platformVelocity = new vec3(0, 0, 0);
         this.isOnFloor = false;
 
-        this.acceleration = new vec3(0.05, 0, 0)
+        this.acceleration = new vec3(0.25, 0, 0)
         this.deceleration = new vec3(0.1, 0, 0)
         this.maxVel = new vec3(6, Infinity, Infinity)
 
@@ -288,12 +326,28 @@ export class Player extends entity {
 
         this.facingRotation = 0;
         this.facingVector = new vec3(1,0,0);
+        
+        this.doesPlatformVelocity = true;
     }
     
     spawn(level) {
+        this.health = 1;
+
+        this.velocity = new vec3(0, 0, 0);
+        this.platformVelocity = new vec3(0, 0, 0);
+        this.collidingSides = { left:false, right:false, top:false, bottom:false };
+        this.isOnFloor = false;
+        this.jumpTime = 0;
+        this.cyoteTime = 0;
+        this.justJumped = false;
+        this.isDashing = false;
+        this.dashTime = 0;
+
         for (const obj of level.objects) {
             if (obj.type !== "SpawnPoint") continue;
-            this.location = obj.location;
+            // this.location = obj.location;
+            this.location.x = obj.location.x;
+            this.location.y = obj.location.y;
         }
     }
 
@@ -362,8 +416,8 @@ export class Player extends entity {
         }
 
         // if switching direction switch faster
-        if (Math.sign(xInput) != Math.sign(this.velocity)) {
-            dx *= 5
+        if (Math.sign(xInput) != Math.sign(this.velocity.x)) {
+            dx *= 2
         }
 
         if (!this.isOnFloor) {
@@ -443,7 +497,7 @@ export class Player extends entity {
         }
 
         if (this.isDashing) this.dashTime += deltaTime * 1000
-        if (this.dashTime > this.maxDashTime) {
+        if (this.dashTime > this.maxDashTime || this.velocity.x == 0) {
             this.isDashing = false;
             this.dashTime = 0;
         }
@@ -495,24 +549,38 @@ export class Player extends entity {
 
         logError(`justJumped:${this.justJumped} gravity:${gravity.toFixed(3)} on floor:${this.isOnFloor} jump time:${this.jumpTime.toFixed(3)}`)
         logError(`vy:${this.velocity.y.toFixed(3)} xy:${this.velocity.x.toFixed(3)} x:${this.location.x.toFixed(3)} y:${this.location.y.toFixed(3)}`)
+        logError(`platform vy:${this.platformVelocity.y.toFixed(3)} xy:${this.platformVelocity.x.toFixed(3)}`)
+        
     }
     
+    damage(amount, type="emeny") {
+        
+        if (this.invincibleTime <= 0) {
+            this.health -= amount
+            this.invincibleTime = 2000
+        }
+
+    }
 
     tick(deltaTime, level) {
         if (!level.loaded) return;
         if (this.initialSpawn) {this.spawn(level); this.initialSpawn = false;}
+        if (this.health == 0) this.spawn(level);
         
+        this.invincibleTime -= deltaTime
+
         this.collisionObjects = this.getCollisionObjects(level);
         this.doInputs(deltaTime);
         
         this.doCollision(deltaTime, level);
+
 
         this.faces[0].vertices3d = this.getFaceVertecies("front");
     }
 }
 
 // one thats a goomba that jumps when you try to jump over it
-export class Enemy extends entity {
+export class Enemy extends physicsObject {
 
     constructor(location) {
         super(location);
@@ -525,7 +593,9 @@ export class Enemy extends entity {
         this.brightness = 1;
         this.ticking = true;
         
-        this.faces.push(new Quad(this.getFaceVertecies("front"), this.brightness))
+        const face = new Quad(this.getFaceVertecies("front"), this.brightness)
+        face.doCulling = false
+        this.faces.push(face)
 
         this.location.z += this.size.z/2
         
@@ -537,6 +607,10 @@ export class Enemy extends entity {
         this.health = 1;
 
         this.speed = 50;
+
+        this.collision = true;
+
+        this.doesPlatformVelocity = true;
     }
 
     tick(deltaTime, level) {
@@ -557,6 +631,11 @@ export class Enemy extends entity {
 
         this.doCollision(deltaTime, level);
 
+        for (const obj of this.touchingPhysicsObjects) {
+            if (obj.type !== "player") continue;
+
+            obj.damage(1);
+        }
 
         this.faces[0].vertices3d = this.getFaceVertecies("front");
     }
@@ -564,19 +643,9 @@ export class Enemy extends entity {
     movementLogic(deltaTime, level) {
         if (!this.isOnFloor) return;
 
+        if (this.velocity.x === 0) this.facingVector = this.facingVector.mult(-1)
 
-        this.collisionObjects = this.getCollisionObjects(level);
-
-        const dx = this.facingVector.x * deltaTime * this.speed * 2
-
-        this.location.x += dx;
-
-        const switchDirection = this.checkCollisions(this.collisionObjects)
-        if (switchDirection) this.facingVector = this.facingVector.mult(-1);
-
-        this.location.x -= dx;
-
-        this.velocity.x = this.speed * this.facingVector.x * deltaTime
+        this.velocity.x = this.facingVector.x * this.speed * deltaTime
         
     }
 

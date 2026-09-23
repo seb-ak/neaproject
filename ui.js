@@ -211,7 +211,7 @@ export class UiController {
                 up: pauseSettingsButton
             }
 
-            pauseMenuScreen.backAction = () => { this.goBackAScreen(); }
+            pauseMenuScreen.backAction = () => { this.goToScreen(gameScreen); }
 
         // are you sure screen
             const areYouSureTitle = new UiElement(areYouSureScreen, "Are you sure?", 2.5,0, 7,1);
