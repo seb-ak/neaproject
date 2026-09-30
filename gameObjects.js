@@ -147,6 +147,18 @@ class physicsObject extends gameObject {
 
         this.doesPlatformVelocity = false;
         this.platformVelocity = new vec3(0, 0, 0);
+        
+        this.invincibleTime = 0;
+        this.maxInvincibleTime = 800;
+
+    }
+
+    damage(amount, type="emeny") {
+        
+        if (this.invincibleTime <= 0) {
+            this.health -= amount
+            this.invincibleTime = this.maxInvincibleTime
+        }
 
     }
 
@@ -328,6 +340,7 @@ export class Player extends physicsObject {
         this.facingVector = new vec3(1,0,0);
         
         this.doesPlatformVelocity = true;
+
     }
     
     spawn(level) {
@@ -342,6 +355,8 @@ export class Player extends physicsObject {
         this.justJumped = false;
         this.isDashing = false;
         this.dashTime = 0;
+
+        this.invincibleTime = this.maxInvincibleTime
 
         for (const obj of level.objects) {
             if (obj.type !== "SpawnPoint") continue;
@@ -552,28 +567,25 @@ export class Player extends physicsObject {
         logError(`platform vy:${this.platformVelocity.y.toFixed(3)} xy:${this.platformVelocity.x.toFixed(3)}`)
         
     }
-    
-    damage(amount, type="emeny") {
-        
-        if (this.invincibleTime <= 0) {
-            this.health -= amount
-            this.invincibleTime = 2000
-        }
-
-    }
 
     tick(deltaTime, level) {
         if (!level.loaded) return;
         if (this.initialSpawn) {this.spawn(level); this.initialSpawn = false;}
         if (this.health == 0) this.spawn(level);
         
-        this.invincibleTime -= deltaTime
+        this.invincibleTime -= deltaTime * 1000
 
         this.collisionObjects = this.getCollisionObjects(level);
         this.doInputs(deltaTime);
         
         this.doCollision(deltaTime, level);
 
+        for (const obj of this.touchingPhysicsObjects) {
+            if (obj.type !== "enemy") continue;
+
+            const damage = obj.attackType.contactDamage
+            if (damage > 0) this.damage(damage)
+        }
 
         this.faces[0].vertices3d = this.getFaceVertecies("front");
     }
@@ -603,6 +615,7 @@ export class Enemy extends physicsObject {
 
         this.facingVector = new vec3(-1,0,0);
         this.baseGravity = 0.5;
+        this.jumpForce = 15;
 
         this.health = 1;
 
@@ -611,6 +624,18 @@ export class Enemy extends physicsObject {
         this.collision = true;
 
         this.doesPlatformVelocity = true;
+
+        this.jumpCooldown = 0;
+
+        this.attackType = {
+            contactDamage: 1,
+        }
+
+        this.movementType = {
+            goomba: false,
+            chase: true,
+            jump: true,
+        }
     }
 
     tick(deltaTime, level) {
@@ -631,22 +656,41 @@ export class Enemy extends physicsObject {
 
         this.doCollision(deltaTime, level);
 
-        for (const obj of this.touchingPhysicsObjects) {
-            if (obj.type !== "player") continue;
-
-            obj.damage(1);
-        }
-
         this.faces[0].vertices3d = this.getFaceVertecies("front");
     }
 
     movementLogic(deltaTime, level) {
         if (!this.isOnFloor) return;
 
-        if (this.velocity.x === 0) this.facingVector = this.facingVector.mult(-1)
+        const playerLoc = level.player.getPoint().center
+        const thisLoc = this.getPoint().center
 
-        this.velocity.x = this.facingVector.x * this.speed * deltaTime
+        const vec = playerLoc.sub(thisLoc)
+
+        if (this.movementType.goomba) {
+
+            if (this.velocity.x === 0) this.facingVector = this.facingVector.mult(-1)
+            this.velocity.x = this.facingVector.x * this.speed * deltaTime
         
+        }
+        if (this.movementType.chase) {
+
+            this.facingVector = new vec3(Math.sign(vec.x), 0, 0)
+            this.velocity.x = this.facingVector.x * this.speed * deltaTime
+
+        }
+        this.jumpCooldown -= deltaTime * 1000
+        if (this.movementType.jump && this.jumpCooldown <= 0) {
+
+            const playerAbove = vec.y < 2 && vec.y > 0.5 && Math.abs(vec.x) < 2
+
+            if (this.isOnFloor && (playerAbove)) {
+                this.velocity.y = this.jumpForce
+                this.jumpCooldown = 1000
+            }
+
+        }
+
     }
 
 }

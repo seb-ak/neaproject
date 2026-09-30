@@ -3,9 +3,10 @@ import { gameObject, levelTile, SpawnPoint, Player, Enemy } from "./gameObjects.
 import { UiController } from "./ui.js"
 
 class Level {
-    constructor(levelFolder, z) {
+    constructor(levelFolder, z, player) {
         this.levelFolder = levelFolder;
         this.z = z;
+        this.player = player
 
         this.objects = [];
         this.gridSize = 0.3;
@@ -18,9 +19,8 @@ class Level {
         this.collision = undefined;
 
         this.tempScaledTextures = new Map();
-        
-        this.load();
 
+        this.load();
     }
 
     async load() {
@@ -363,6 +363,13 @@ class Main {
         this.settings = {
             dithering: true,
             colourScheme: 0,
+            colours: [
+                {dark: {r:5, g:28, b:12}, light: {r:51, g:255, b:102}}, // #051c0c (Dark Forest Green) and #33ff66 (Terminal Green)
+                {dark: {r:43, g:27, b:61}, light: {r:246, g:240, b:207}}, // #2b1b3d (Plum Purple) and #f6f0cf (Butter Yellow)
+                {dark: {r:18, g:12, b:0}, light: {r:255, g:176, b:0}}, // #120c00 (Deep Brown-Black) and #ffb000 (Classic Amber)
+                {dark: {r:15, g:26, b:44}, light: {r:238, g:242, b:247}}, // #0f1a2c (Dark Navy) and #eef2f7 (Ice White)
+                {dark: {r:36, g:89, b:92}, light: {r:240, g:125, b:234}},
+            ],
         }
 
         this.deltaTime = 1
@@ -389,11 +396,11 @@ class Main {
             maxQuadDist: 20
         };
         
-        this.level = {
-            main: new Level("test1", 0),
-            second: new Level("test1", -15),
-        };
         this.player = new Player(new vec3(0,0,0))
+        this.level = {
+            main: new Level("test1", 0, this.player),
+            second: new Level("test1", -15, this.player),
+        };
 
         this.levelLayer = "main"
 
@@ -529,12 +536,7 @@ class Main {
 
     dither() {
         
-        const colour = [
-            {dark: {r:5, g:28, b:12}, light: {r:51, g:255, b:102}}, // #051c0c (Dark Forest Green) and #33ff66 (Terminal Green)
-            {dark: {r:43, g:27, b:61}, light: {r:246, g:240, b:207}}, // #2b1b3d (Plum Purple) and #f6f0cf (Butter Yellow)
-            {dark: {r:18, g:12, b:0}, light: {r:255, g:176, b:0}}, // #120c00 (Deep Brown-Black) and #ffb000 (Classic Amber)
-            {dark: {r:15, g:26, b:44}, light: {r:238, g:242, b:247}}, // #0f1a2c (Dark Navy) and #eef2f7 (Ice White)
-        ][this.settings.colourScheme];
+        const colour = this.settings.colours[this.settings.colourScheme];
 
         const width = this.screen.width
         const height = this.screen.height

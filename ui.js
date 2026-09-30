@@ -152,7 +152,7 @@ export class UiController {
 
             const colourScheme = new UiButton(settingsScreen, "Colour 0", 1,4, 6,1);
             colourScheme.action = () => {
-                this.main.settings.colourScheme = (this.main.settings.colourScheme + 1) % 4;
+                this.main.settings.colourScheme = (this.main.settings.colourScheme + 1) % this.main.settings.colours.length;
                 colourScheme.text = `Colour ${this.main.settings.colourScheme}`;
             }
 
