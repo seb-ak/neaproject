@@ -1,5 +1,5 @@
 import { logError, clearLog, vec3, loadImage, Quad } from "./utils.js";
-import { gameObject, levelTile, SpawnPoint, Player, Enemy } from "./gameObjects.js";
+import { gameObject, levelTile, SpawnPoint, Player, Enemy, Platform } from "./gameObjects.js";
 import { UiController } from "./ui.js"
 
 class Level {
@@ -39,14 +39,19 @@ class Level {
 
     generateLevel() {
 
+
+        const platforms = {}
+
         // COLLISION //
         for (let y = 0; y < this.collision.array.length; y++) {
             this.gridCollision[y] = [];
             this.gridObjects[y] = [];
             for (let x = 0; x < this.collision.array[y].length; x++) {
                 const tile = this.collision.array[y][x];
+                const hex = tile.hex.substring(0, 7);
+                const data = tile.a.toString(10).padStart(2, '0')
                 
-                this.gridCollision[y][x] = (tile.hex === "#000000ff")
+                this.gridCollision[y][x] = (hex === "#000000")
                 if (this.gridCollision[y][x]) {
                     const o = new gameObject(new vec3(x*this.gridSize, y*this.gridSize, 0));
                     o.size = new vec3(this.gridSize, this.gridSize, this.gridSize);
@@ -54,15 +59,42 @@ class Level {
                     this.gridObjects[y][x] = o;
                 }
                 
-                if (tile.hex === "#ff0000ff") {
+                if (hex === "#ff0000" && data=="255") {
+                    console.log("made spawnpoint")
                     this.objects.push( new SpawnPoint(new vec3(x*this.gridSize, y*this.gridSize, 0+this.gridSize)) );
                 }
                 
-                if (tile.hex === "#0000ffff") {
+                if (hex === "#0000ff") {
+                    const type = tile.a
                     this.objects.push( new Enemy(new vec3(x*this.gridSize, y*this.gridSize, 0+this.gridSize)) );
+                }
+
+                if (hex === "#ffff00") {
+                    const id = data[1]
+                    const index = data[2]
+                    if (!platforms[id]) {platforms[id] = {}}
+                    platforms[id][index] = new vec3(x*this.gridSize, y*this.gridSize, 0+this.gridSize)
+                }
+
+                if (hex === "#ff00ff") {
+                    //portal
                 }
             }
         }
+
+        // platforms //
+            for (const x of Object.values(platforms)) {
+                
+                const entries = Object.entries(x).sort((a, b) => {
+                    return parseInt(a) - parseInt(b);
+                });
+                const positions = entries.map(p => p[1])
+                
+                this.objects.push( new Platform(positions) );
+            }
+
+        //
+
 
         // TEXTURE //
         for (let y = 0; y < this.texture.array.length; y++) {
@@ -462,6 +494,14 @@ class Main {
             for (const level of Object.values(this.level)) level.tick(this.deltaTime);
     
             this.player.tick(this.deltaTime, this.level[this.player.level])
+
+
+            // switch between game ui and death screen when player is dead // 
+            if (this.player.deathTimer != -1 && this.ui.activeScreen == this.ui.gameScreen) {
+                this.ui.activeScreen = this.ui.deathScreen
+            } else if (this.player.deathTimer == -1 && this.ui.activeScreen == this.ui.deathScreen) {
+                this.ui.activeScreen = this.ui.gameScreen
+            }
 
 
             // move camera //

@@ -258,7 +258,15 @@ class physicsObject extends gameObject {
     }
 
     getCollisionObjects(level) {
-        return [...level.objects.filter(obj => (obj !== this && obj.collision)),...level.getCloseTo(this)]
+        return [...level.objects
+            .filter(
+                obj => (
+                    obj !== this && obj.collision &&
+                    (obj.type != "platform" || obj.getPoint().tl.y <= this.getPoint().bl.y)
+                )
+            ),
+            ...level.getCloseTo(this)
+        ]
     }
 
 }
@@ -343,8 +351,12 @@ export class Player extends physicsObject {
 
     }
     
-    spawn(level) {
+    spawn(level) {    
+                console.log("try spawn")
+
         this.health = 1;
+
+        this.deathTimer = -1;
 
         this.velocity = new vec3(0, 0, 0);
         this.platformVelocity = new vec3(0, 0, 0);
@@ -565,15 +577,23 @@ export class Player extends physicsObject {
         logError(`justJumped:${this.justJumped} gravity:${gravity.toFixed(3)} on floor:${this.isOnFloor} jump time:${this.jumpTime.toFixed(3)}`)
         logError(`vy:${this.velocity.y.toFixed(3)} xy:${this.velocity.x.toFixed(3)} x:${this.location.x.toFixed(3)} y:${this.location.y.toFixed(3)}`)
         logError(`platform vy:${this.platformVelocity.y.toFixed(3)} xy:${this.platformVelocity.x.toFixed(3)}`)
-        
+
     }
 
     tick(deltaTime, level) {
         if (!level.loaded) return;
         if (this.initialSpawn) {this.spawn(level); this.initialSpawn = false;}
-        if (this.health == 0) this.spawn(level);
-        
+
+        if (this.health == 0 && this.deathTimer == -1) this.deathTimer = 2000;
+        if (this.deathTimer != -1) this.deathTimer -= deltaTime * 1000;
+        if (this.deathTimer != -1 && this.deathTimer <= 0) this.spawn(level);
+
         this.invincibleTime -= deltaTime * 1000
+
+        if (this.deathTimer != -1) {
+            this.faces[0].vertices3d = [new vec3(0,0,0),new vec3(0,0,0),new vec3(0,0,0),new vec3(0,0,0)];
+            return;
+        }
 
         this.collisionObjects = this.getCollisionObjects(level);
         this.doInputs(deltaTime);
@@ -682,15 +702,87 @@ export class Enemy extends physicsObject {
         this.jumpCooldown -= deltaTime * 1000
         if (this.movementType.jump && this.jumpCooldown <= 0) {
 
-            const playerAbove = vec.y < 2 && vec.y > 0.5 && Math.abs(vec.x) < 2
+            const playerAbove = vec.y < 2 && vec.y > 0.5 && Math.abs(vec.x) < 4
 
             if (this.isOnFloor && (playerAbove)) {
                 this.velocity.y = this.jumpForce
-                this.jumpCooldown = 1000
+                this.jumpCooldown = 4500
             }
 
         }
 
     }
+
+}
+
+export class Platform extends physicsObject {
+
+    constructor(positions) {
+        super(positions[0]);
+        
+        this.positions = positions;
+        this.speed = 1;
+        this.targetPositionIndex = 0;
+        this.lastDiff = undefined
+
+
+        this.type = "platform";
+
+        this.size = new vec3(6,1,2)
+
+        this.collision = true;
+
+        this.baseGravity = 0;
+
+
+
+        this.brightness = 0.6;
+        this.faces.push(new Quad(this.getFaceVertecies("front"), this.brightness))
+
+        this.faces.push(new Quad(this.getFaceVertecies("left"), this.brightness))
+        this.faces.push(new Quad(this.getFaceVertecies("right"), this.brightness))
+        this.faces.push(new Quad(this.getFaceVertecies("up"), this.brightness))
+        this.faces.push(new Quad(this.getFaceVertecies("down"), this.brightness))
+
+    }
+
+    tick(deltaTime, level) {
+        if (!level.loaded) return;
+
+        if (this.positions.length > 1) {
+            const target = this.positions[this.targetPositionIndex]
+
+            const diff = target.sub(this.location).normalise()
+
+            this.velocity = diff.mult(this.speed * deltaTime)
+
+            if (
+                this.lastDiff != undefined && 
+                this.lastDiff.x != diff.x && 
+                this.lastDiff.y != diff.y
+            ) {
+                this.location = target
+                this.targetPositionIndex = (this.targetPositionIndex + 1) % this.positions.length
+                this.lastDiff = undefined
+            }
+
+            this.lastDiff = diff
+        }
+
+        this.location.add(this.velocity)
+        // this.doCollision(deltaTime, level);
+
+        this.updateFaces();
+    }
+
+    updateFaces() {
+        this.faces[0].vertices3d = this.getFaceVertecies("front");
+        this.faces[1].vertices3d = this.getFaceVertecies("left");
+        this.faces[2].vertices3d = this.getFaceVertecies("right");
+        this.faces[3].vertices3d = this.getFaceVertecies("up");
+        this.faces[4].vertices3d = this.getFaceVertecies("down");
+    }
+
+
 
 }

@@ -106,11 +106,13 @@ export class UiController {
         const pauseMenuScreen = new UiScreen(this, "Pause Menu");
         const areYouSureScreen = new UiScreen(this, "Are you sure?");
         const gameScreen = new UiScreen(this, "Game");
+        const deathScreen = new UiScreen(this, "Death");
         
         this.gameScreen = gameScreen;
         this.pauseMenuScreen = pauseMenuScreen
+        this.deathScreen = deathScreen;
 
-        this.activeScreen = mainMenuScreen
+        this.activeScreen = mainMenuScreen;
 
         // main menu
             const mainMenuTitle = new UiElement(mainMenuScreen, "Game Name", 3,0, 6,1);
@@ -238,6 +240,12 @@ export class UiController {
 
 
             gameScreen.backAction = () => { this.goToScreen(pauseMenuScreen); }
+
+        // death screen
+            const youDied = new UiElement(deathScreen, "You Died", 3,2, 6,2);
+            
+            gameScreen.backAction = () => { this.goToScreen(pauseMenuScreen); }
+
     
     }
 
