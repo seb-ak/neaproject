@@ -190,7 +190,6 @@ class physicsObject extends gameObject {
     resolveY(obj) {
         if (!obj.collision) return;
         if (!this.isCollidingWith(obj)) return;
-
         const thisCenter = this.getPoint().center
         const objCenter = obj.getPoint().center
 
@@ -212,11 +211,18 @@ class physicsObject extends gameObject {
             if (obj.isPhysicsObject) this.touchingPhysicsObjects.push(obj)//this.platformVelocity = obj.velocity
             // else this.platformVelocity = new vec3(0, 0, 0);
         }
+        // if (this.type==="player") console.log(this.isOnFloor, this.velocity.y)
+
     }
     doCollision(deltaTime, level) {
         this.isOnFloor = false;
 
         this.collisionObjects = this.getCollisionObjects(level);
+        // for (const obj of this.collisionObjects) {
+        //     if (this.type==="player" && obj.type == "platform") {
+        //         console.log(obj.location.x, ": ", (obj.location.y+obj.size.y*0.9) - this.location.y)
+        //     }
+        // }
         logError(`${this.type} collisions: ${this.collisionObjects.length}`)
 
         const velocity = this.velocity.add(this.platformVelocity);
@@ -259,12 +265,15 @@ class physicsObject extends gameObject {
 
     getCollisionObjects(level) {
         return [...level.objects
-            .filter(
-                obj => (
-                    obj !== this && obj.collision &&
-                    (obj.type != "platform" || obj.getPoint().tl.y <= this.getPoint().bl.y)
+            .filter( obj => (
+                obj !== this && obj.collision &&
+                (obj.type != "platform" ||
+                    (
+                        (obj.location.y+obj.size.y*0.9) <= this.location.y && 
+                        this.velocity.y <= 0
+                    )
                 )
-            ),
+            )),
             ...level.getCloseTo(this)
         ]
     }
@@ -352,7 +361,7 @@ export class Player extends physicsObject {
     }
     
     spawn(level) {    
-                console.log("try spawn")
+                // console.log("try spawn")
 
         this.health = 1;
 
@@ -405,7 +414,7 @@ export class Player extends physicsObject {
             
             const colliding = this.checkCollisions(this.collisionObjects);
             if (colliding) {
-                this.size.y = this.crouchHeight;
+                this.size.y = this.baseHeight;
             } else {
                 this.isCrouching = true;
                 if (Math.abs(this.velocity.x) > this.maxVel.x && xInput != 0) {
@@ -574,9 +583,7 @@ export class Player extends physicsObject {
 
         this.velocity.y -= gravity * deltaTime * 144
 
-        logError(`justJumped:${this.justJumped} gravity:${gravity.toFixed(3)} on floor:${this.isOnFloor} jump time:${this.jumpTime.toFixed(3)}`)
-        logError(`vy:${this.velocity.y.toFixed(3)} xy:${this.velocity.x.toFixed(3)} x:${this.location.x.toFixed(3)} y:${this.location.y.toFixed(3)}`)
-        logError(`platform vy:${this.platformVelocity.y.toFixed(3)} xy:${this.platformVelocity.x.toFixed(3)}`)
+        logError(`gravity:${gravity.toFixed(3)}`)
 
     }
 
@@ -599,6 +606,11 @@ export class Player extends physicsObject {
         this.doInputs(deltaTime);
         
         this.doCollision(deltaTime, level);
+
+        logError(`justJumped:${this.justJumped} on floor:${this.isOnFloor} jump time:${this.jumpTime.toFixed(3)}`)
+        logError(`vy:${this.velocity.y.toFixed(3)} xy:${this.velocity.x.toFixed(3)} x:${this.location.x.toFixed(3)} y:${this.location.y.toFixed(3)}`)
+        logError(`platform vy:${this.platformVelocity.y.toFixed(3)} xy:${this.platformVelocity.x.toFixed(3)}`)
+
 
         for (const obj of this.touchingPhysicsObjects) {
             if (obj.type !== "enemy") continue;
@@ -718,22 +730,23 @@ export class Enemy extends physicsObject {
 export class Platform extends physicsObject {
 
     constructor(positions) {
-        super(positions[0]);
+        super(new vec3(
+            positions[0].x,
+            positions[0].y,
+            positions[0].z - 0.25
+        ));
         
         this.positions = positions;
         this.speed = 1;
         this.targetPositionIndex = 0;
         this.lastDiff = undefined
-
+        this.ticking = true;
 
         this.type = "platform";
-
-        this.size = new vec3(6,1,2)
+        this.size = new vec3(6,1,0.25)
 
         this.collision = true;
-
         this.baseGravity = 0;
-
 
 
         this.brightness = 0.6;
@@ -750,18 +763,20 @@ export class Platform extends physicsObject {
         if (!level.loaded) return;
 
         if (this.positions.length > 1) {
+
             const target = this.positions[this.targetPositionIndex]
 
             const diff = target.sub(this.location).normalise()
 
-            this.velocity = diff.mult(this.speed * deltaTime)
+            this.velocity = diff.mult(this.speed * deltaTime * 1000)
 
             if (
                 this.lastDiff != undefined && 
                 this.lastDiff.x != diff.x && 
                 this.lastDiff.y != diff.y
             ) {
-                this.location = target
+                this.location.x = target.x
+                this.location.y = target.y
                 this.targetPositionIndex = (this.targetPositionIndex + 1) % this.positions.length
                 this.lastDiff = undefined
             }

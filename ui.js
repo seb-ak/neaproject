@@ -140,7 +140,7 @@ export class UiController {
             };
 
 
-            mainMenuScreen.backAction = () => { window.location.reload(); /*close();*/ }
+            // mainMenuScreen.backAction = () => { window.location.reload(); /*close();*/ }
 
         // settings menu
             const settingsTitle = new UiElement(settingsScreen, "Settings", 3,0, 6,1);
@@ -244,7 +244,7 @@ export class UiController {
         // death screen
             const youDied = new UiElement(deathScreen, "You Died", 3,2, 6,2);
             
-            gameScreen.backAction = () => { this.goToScreen(pauseMenuScreen); }
+            youDied.backAction = () => {console.log("death pause"); this.goToScreen(pauseMenuScreen); }
 
     
     }

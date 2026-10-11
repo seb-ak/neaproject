@@ -220,31 +220,6 @@ class Level {
 
     }
 
-    /*
-    // Source - https://stackoverflow.com/a/44558286
-    // Posted by Smuj Em, modified by community. See post 'Timeline' for change history
-    // Retrieved 2026-03-18, License - CC BY-SA 4.0
-    
-    // Create a buffer element to draw based on the Image img
-    const buffer = document.createElement('canvas');
-    buffer.width = img.width;
-    buffer.height = img.height;
-    const btx = buffer.getContext('2d');
-        
-    // First draw your image to the buffer
-    btx.drawImage(img, 0, 0);
-
-    // Now we'll multiply a rectangle of your chosen color
-    btx.fillStyle = '#FF7700';
-    btx.globalCompositeOperation = 'multiply';
-    btx.fillRect(0, 0, buffer.width, buffer.height);
-
-    // Finally, fix masking issues you'll probably incur and optional globalAlpha
-    btx.globalAlpha = 0.5;
-    btx.globalCompositeOperation = 'destination-in';
-    btx.drawImage(img, 0, 0);
-    */
-
     drawQuad(ctx, vertices, brightness, distance) {
         function drawSubQuad(ctx, points, subQuadBrightness) {
             // console.log(brightness)
@@ -370,11 +345,11 @@ class Level {
         const min = obj.getPoint().bl.sub(distance).div(this.gridSize)
         const max = obj.getPoint().tr.add(distance).div(this.gridSize)
 
-        min.x = Math.min(this.gridObjects[0].length, Math.max(0, Math.floor(min.x)))
-        max.x = Math.min(this.gridObjects[0].length, Math.max(0, Math.floor(max.x)))
+        min.x = Math.min(this.gridObjects[0].length-1, Math.max(0, Math.floor(min.x)))
+        max.x = Math.min(this.gridObjects[0].length-1, Math.max(0, Math.floor(max.x)))
         
-        min.y = Math.min(this.gridObjects.length, Math.max(0, Math.floor(min.y)))
-        max.y = Math.min(this.gridObjects.length, Math.max(0, Math.floor(max.y)))
+        min.y = Math.min(this.gridObjects.length-1, Math.max(0, Math.floor(min.y)))
+        max.y = Math.min(this.gridObjects.length-1, Math.max(0, Math.floor(max.y)))
         
         for (let y=min.y; y<max.y; y++) {
             for (let x=min.x; x<max.x; x++) {
@@ -487,7 +462,10 @@ class Main {
             this.player.spawn(this.level[this.player.level]);
         }
 
-        const paused = this.ui.activeScreen != this.ui.gameScreen;
+        const paused = !(
+            this.ui.activeScreen == this.ui.gameScreen ||
+            this.ui.activeScreen == this.ui.deathScreen
+        );
 
         if (!paused) {
         

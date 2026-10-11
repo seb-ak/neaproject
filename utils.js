@@ -62,6 +62,22 @@ export class vec3 {
         const len = this.length()
         return this.div(len)
     }
+
+    dot(vec) {
+        return (
+            this.x * vec.x +
+            this.y * vec.y +
+            this.z * vec.z
+        )
+    }
+
+    cross(vec) {
+        return new vec3(
+            this.y * vec.z - this.z * vec.y,
+            this.z * vec.x - this.x * vec.z,
+            this.x * vec.y - this.y * vec.x
+        )
+    }
 }
 
 export class Quad {
@@ -70,6 +86,11 @@ export class Quad {
         this.distance = 0
         this.brightness = brightness
         this.doCulling = true
+
+        const a = vertices[1].sub(vertices[0])
+        const b = vertices[2].sub(vertices[0])
+        this.isFrontFace = Math.abs(a.cross(b).z) > 0
+        this.isMainQuad = this.isFrontFace
     }
 
     project2d(f, w, h, cameraLoc, offset) {
@@ -92,17 +113,17 @@ export class Quad {
         
         const center = translatedVertices3d[0].add(translatedVertices3d[2]).div(2);
         let distance = center.length();
-        if (this.isMainQuad) {
-            distance = center.z
-        }
+        if (this.isMainQuad) distance = center.z;
+        else if (this.isFrontFace) distance = center.z;
 
         return [vertices2d, distance, this.brightness]
     }
 
     isOnScreen(point, w, h) {
+        const buffer = 50
         return (
-            point.x > 0 && point.x < w &&
-            point.y > 0 && point.y < h
+            point.x >= 0-buffer && point.x <= w+buffer &&
+            point.y >= 0-buffer && point.y <= h+buffer
         );
     }
 
@@ -135,7 +156,7 @@ export async function loadImage(path) {
             let i = 0;
     
             for (let y = 0; y < img.height; y++) {
-                array[y] = [];
+                    array[y] = [];
                 for (let x = 0; x < img.width; x++) {
     
                     const data = {
