@@ -2,6 +2,8 @@ import { logError, clearLog, vec3, loadImage, Quad } from "./utils.js";
 import { gameObject, levelTile, SpawnPoint, Player, Enemy, Platform } from "./gameObjects.js";
 import { UiController } from "./ui.js"
 
+const ZOOMOUT = 0;
+
 class Level {
     constructor(levelFolder, z, player) {
         this.levelFolder = levelFolder;
@@ -65,8 +67,7 @@ class Level {
                 }
                 
                 if (hex === "#0000ff") {
-                    const type = tile.a
-                    this.objects.push( new Enemy(new vec3(x*this.gridSize, y*this.gridSize, 0+this.gridSize)) );
+                    this.objects.push( new Enemy(new vec3(x*this.gridSize, y*this.gridSize, 0+this.gridSize), data) );
                 }
 
                 if (hex === "#ffff00") {
@@ -340,7 +341,8 @@ class Level {
 	}
 
     getCloseTo(obj) {
-        const distance = obj.size.mult(2)
+        // const distance = obj.size.mult(2)
+        const distance = new vec3(0.5, 0.5, 0.5)
         const close = []
         const min = obj.getPoint().bl.sub(distance).div(this.gridSize)
         const max = obj.getPoint().tr.add(distance).div(this.gridSize)
@@ -354,7 +356,9 @@ class Level {
         for (let y=min.y; y<max.y; y++) {
             for (let x=min.x; x<max.x; x++) {
                 const o = this.gridObjects[y][x];
-                if (o) close.push(o);
+                if (!o) continue;
+                if (!o.collision) continue;
+                close.push(o);
             }
         }
 
@@ -376,6 +380,11 @@ class Main {
                 {dark: {r:18, g:12, b:0}, light: {r:255, g:176, b:0}}, // #120c00 (Deep Brown-Black) and #ffb000 (Classic Amber)
                 {dark: {r:15, g:26, b:44}, light: {r:238, g:242, b:247}}, // #0f1a2c (Dark Navy) and #eef2f7 (Ice White)
                 {dark: {r:36, g:89, b:92}, light: {r:240, g:125, b:234}},
+                {dark: {r:74, g:68, b:94}, light: {r:180, g:76, b:67}},
+                {dark: {r:0, g:0, b:0}, light: {r:255, g:255, b:255}},
+                {dark: {r:Math.random()*255, g:Math.random()*255, b:Math.random()*255}, light: {r:Math.random()*255, g:Math.random()*255, b:Math.random()*255}},
+                {dark: {r:99, g:222, b:165}, light: {r:222, g: 103, b:99}},
+                {dark: {r:42, g:12, b:64}, light: {r:118, g: 146, b:249}},
             ],
         }
 
@@ -458,6 +467,8 @@ class Main {
             }
         }
 
+        if (this.deltaTime > 1 || this.deltaTime < 0.005) console.log(this.deltaTime)
+
         if (this.player.initialSpawn) {
             this.player.spawn(this.level[this.player.level]);
         }
@@ -486,10 +497,10 @@ class Main {
             const vel = new vec3(
                 this.player.velocity.x / 6 * (this.player.isDashing? 1.2 : 1),
                 0,//this.player.velocity.y / 30,
-                -4
+                -4 - ZOOMOUT
             )
             const diff = this.player.location
-                .add(new vec3(0,1.5,0))
+                .add(new vec3(0,1.0,0))
                 .add(vel)
                 .sub(this.camera.location)
                 .div(8)
@@ -498,8 +509,10 @@ class Main {
             this.camera.location.x += diff.x
             this.camera.location.y += diff.y
             this.camera.location.z += diff.z
-            // this.camera.fov = (this.player.isDashing? 71 : 70)
+
             this.camera.fov = Math.abs(this.player.velocity) > 5? 71 : 70
+            
+            // this.camera.fov = Math.abs(this.player.velocity) > 5? 81 : 80
         
         } else {
             this.camera.location = this.player.location.add(

@@ -40,6 +40,27 @@ export class UiController {
 
     keyDown(event) {
         
+        // random colours //
+        if (event.code === "KeyC") {
+            this.main.settings.colours[7] = {
+                dark: {r:Math.random()*255, g:Math.random()*255, b:Math.random()*255}, 
+                light: {r:Math.random()*255, g:Math.random()*255, b:Math.random()*255}
+            }
+            console.log(this.main.settings.colours[7])
+            this.main.settings.colourScheme = 7
+        }
+        if (event.code === "KeyV") {
+            const differ = 200
+            const colour = {r:Math.random()*255, g:Math.random()*255, b:Math.random()*255}
+            this.main.settings.colours[7] = {
+                dark: colour, 
+                light: {r:colour.r + (Math.random()-0.5)*differ, g:colour.g + (Math.random()-0.5)*differ, b:colour.b + (Math.random()-0.5)*differ}
+            }
+            console.log(this.main.settings.colours[7])
+            this.main.settings.colourScheme = 7
+        }
+        // random colours //
+
         if (event.code === "Escape" && this.activeScreen.backAction != undefined) {
             this.activeScreen.backAction();
         }
