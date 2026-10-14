@@ -123,6 +123,7 @@ export class levelTile extends gameObject {
 
 export class SpawnPoint extends gameObject {
     constructor(location) {
+        location = location.add(new vec3(-9,10,0)) // moved to spawn next to spikes
         super(location);
         this.type = "SpawnPoint"
         this.collision = false;
@@ -175,6 +176,8 @@ class physicsObject extends gameObject {
             (this.size.y/2 + obj.size.y/2) - Math.abs(thisCenter.y - objCenter.y)
         )
         if (overlap.x <= 0.001 || overlap.y <= 0.001) return;
+        
+        overlap.x += 0.001
 
         const dir = (thisCenter.x < objCenter.x) ? -1 : 1
         this.location.x += overlap.x * dir
@@ -200,6 +203,8 @@ class physicsObject extends gameObject {
         )
         if (overlap.x <= 0.001 || overlap.y <= 0.001) return;
 
+        overlap.y += 0.001
+
         const dir = (thisCenter.y < objCenter.y) ? -1 : 1
         this.location.y += overlap.y * dir
         this.velocity.y = 0;
@@ -221,7 +226,6 @@ class physicsObject extends gameObject {
             this.resolveY(obj);
         }
         if (this.isCollidingWith(player)) {
-            console.log("a")
             player.firstCheckDirection = "y";
         }
     }
@@ -231,7 +235,6 @@ class physicsObject extends gameObject {
             this.resolveX(obj);
         }
         if (this.isCollidingWith(player)) {
-            console.log("b")
             player.firstCheckDirection = "x";
         }
     }
@@ -270,7 +273,6 @@ class physicsObject extends gameObject {
         if (obj) this.platformVelocity = obj.velocity;
         else this.platformVelocity = new vec3(0, 0, 0);
 
-        if (this.type === "player") console.log(this.firstCheckDirection)
         if (this.type === "player") this.firstCheckDirection = "y"
     }
     checkCollisions(objects) {
@@ -423,42 +425,17 @@ export class Player extends physicsObject {
             this.facingVector = new vec3(xInput, yInput, 0).normalise()
             this.facingRotation = Math.atan2(yInput, xInput);
         }
+        this.xInput = xInput
+        this.yInput = yInput
 
 
         // press crouch when in air all velocity transferred to down and ground slam
         
 
 
-
         // crouch and sliding
-        if (yInput < 0 && this.size.y != this.crouchHeight) {
-            this.size.y = this.crouchHeight;
-            
-            const colliding = this.checkCollisions(this.collisionObjects);
-            if (colliding) {
-                this.size.y = this.baseHeight;
-            } else {
-                this.isCrouching = true;
-                if (Math.abs(this.velocity.x) > this.maxVel.x && xInput != 0) {
-                    this.velocity.x *= 1.2
-                    this.isSliding = true
-                }
-            }
-        } else if (yInput >= 0 && this.size.y != this.baseHeight) {
-            this.size.y = this.baseHeight;
-            
-            const colliding = this.checkCollisions(this.collisionObjects);
-            if (colliding) {
-                this.size.y = this.crouchHeight;
-            } else {
-                this.isCrouching = false;
-                this.isSliding = false;
-            }
-
-        }
-        if (this.isCrouching && this.isSliding && Math.abs(this.velocity.x) < 1) {
-            this.isSliding = false;
-        }
+        this.targetCrouch = yInput < 0 // tried this not needed once added 0.001
+        
 
 
         logError(`facing rotation: ${this.facingRotation.toFixed(3)} facing vector: x:${this.facingVector.x.toFixed(3)} y:${this.facingVector.y.toFixed(3)}`)
@@ -609,6 +586,39 @@ export class Player extends physicsObject {
 
     }
 
+    tryCrouch(level) {
+        
+        // crouch and sliding
+        if (this.targetCrouch && this.size.y != this.crouchHeight) {
+            this.size.y = this.crouchHeight;
+            
+            const colliding = this.checkCollisions(this.collisionObjects);
+            if (colliding) {
+                this.size.y = this.baseHeight;
+            } else {
+                this.isCrouching = true;
+                if (Math.abs(this.velocity.x) > this.maxVel.x && this.xInput != 0) {
+                    this.velocity.x *= 1.2
+                    this.isSliding = true
+                }
+            }
+        } else if (!this.targetCrouch && this.size.y != this.baseHeight) {
+            this.size.y = this.baseHeight;
+            
+            const colliding = this.checkCollisions(this.collisionObjects);
+            if (colliding) {
+                this.size.y = this.crouchHeight;
+            } else {
+                this.isCrouching = false;
+                this.isSliding = false;
+            }
+
+        }
+        if (this.isCrouching && this.isSliding && Math.abs(this.velocity.x) < 1) {
+            this.isSliding = false;
+        }
+    }
+
     tick(deltaTime, level) {
         if (!level.loaded) return;
         if (this.initialSpawn) {this.spawn(level); this.initialSpawn = false;}
@@ -628,6 +638,7 @@ export class Player extends physicsObject {
         this.doInputs(deltaTime);
         
         this.doCollision(deltaTime, level);
+        this.tryCrouch(level);
 
         logError(`justJumped:${this.justJumped} on floor:${this.isOnFloor} jump time:${this.jumpTime.toFixed(3)}`)
         logError(`vy:${this.velocity.y.toFixed(3)} xy:${this.velocity.x.toFixed(3)} x:${this.location.x.toFixed(3)} y:${this.location.y.toFixed(3)}`)
@@ -635,15 +646,14 @@ export class Player extends physicsObject {
 
 
         for (const obj of this.touchingPhysicsObjects) {
-            if (obj.type !== "enemy") continue;
-
-            const damage = obj.attackType.contactDamage
-            if (damage > 0) this.damage(damage)
+            const attack = obj.attackType
+            if (attack && attack.contactDamage > 0) this.damage(attack.contactDamage)
         }
         if (this.location.y < -10) this.damage(1)
 
         this.faces[0].vertices3d = this.getFaceVertecies("front");
     }
+
 }
 
 // one thats a goomba that jumps when you try to jump over it
@@ -842,5 +852,45 @@ export class Platform extends physicsObject {
     }
 
 
+
+}
+
+export class Portal extends gameObject {
+
+}
+
+export class Spike extends physicsObject {
+
+    constructor(location, gridSize) {
+        location = location.add( new vec3(0,0,0.25) )
+        super(location);
+        this.size = new vec3(gridSize, gridSize*2, gridSize);
+
+        this.collision = true;
+        this.gravity = 0;
+        this.ticking = true;
+
+        this.brightness = 0.7;
+
+        const topMiddle = this.getPoint().center.add(new vec3(0, this.size.y/2, 0));
+
+        const front = this.getFaceVertecies("front"); front[0] = topMiddle; front[1] = topMiddle;
+        const left = this.getFaceVertecies("left"); left[0] = topMiddle; left[1] = topMiddle;
+        const right = this.getFaceVertecies("right"); right[0] = topMiddle; right[1] = topMiddle;
+
+        this.faces.push(new Quad(front, this.brightness))
+        // this.faces.push(new Quad(left, this.brightness))
+        // this.faces.push(new Quad(right, this.brightness))
+        // 2d looks better than 3d
+
+        this.attackType = {
+            contactDamage: 1,
+        }
+
+    }
+
+    tick(deltaTime, level) {
+
+    }
 
 }

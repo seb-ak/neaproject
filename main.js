@@ -1,5 +1,5 @@
 import { logError, clearLog, vec3, loadImage, Quad } from "./utils.js";
-import { gameObject, levelTile, SpawnPoint, Player, Enemy, Platform } from "./gameObjects.js";
+import { gameObject, levelTile, SpawnPoint, Player, Enemy, Platform, Portal, Spike } from "./gameObjects.js";
 import { UiController } from "./ui.js"
 
 const ZOOMOUT = 0;
@@ -62,7 +62,6 @@ class Level {
                 }
                 
                 if (hex === "#ff0000" && data=="255") {
-                    console.log("made spawnpoint")
                     this.objects.push( new SpawnPoint(new vec3(x*this.gridSize, y*this.gridSize, 0+this.gridSize)) );
                 }
                 
@@ -77,8 +76,13 @@ class Level {
                     platforms[id][index] = new vec3(x*this.gridSize, y*this.gridSize, 0+this.gridSize)
                 }
 
+                if (hex === "#ff0000" && data=="200") {
+                    this.objects.push( new Spike(new vec3(x*this.gridSize, y*this.gridSize, 0+this.gridSize), this.gridSize) );
+                }
+
+
                 if (hex === "#ff00ff") {
-                    //portal
+                    this.objects.push( new Portal(new vec3(x*this.gridSize, y*this.gridSize, 0+this.gridSize)) );
                 }
             }
         }
@@ -407,9 +411,10 @@ class Main {
             height: 144*2,
         };
         this.camera = {
-            location: new vec3(20,2,-4),
+            location: new vec3(),
             fov: 70,
-            maxQuadDist: 20
+            maxQuadDist: 20,
+            z: -5
         };
         
         this.player = new Player(new vec3(0,0,0))
@@ -497,7 +502,8 @@ class Main {
             const vel = new vec3(
                 this.player.velocity.x / 6 * (this.player.isDashing? 1.2 : 1),
                 0,//this.player.velocity.y / 30,
-                -4 - ZOOMOUT
+                this.camera.z
+                // -4 - ZOOMOUT
             )
             const diff = this.player.location
                 .add(new vec3(0,1.0,0))
