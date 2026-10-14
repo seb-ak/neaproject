@@ -311,7 +311,7 @@ export class Player extends physicsObject {
         super(location)
         this.initialSpawn = true;
         this.spawnPoint = undefined;
-        this.level = "main";
+        this.levelID = "main";
 
         this.type = "player";
         this.size = new vec3(0.5,1,0.5);
@@ -325,12 +325,13 @@ export class Player extends physicsObject {
         this.location.z += this.size.z/2
 
         this.pressedInputs = {
-            up:   {keys:["w",],active:false},
-            down: {keys:["s",],active:false},
-            left: {keys:["a",],active:false},
-            right:{keys:["d",],active:false},
-            jump: {keys:[" ",],active:false},
-            dash: {keys:["shift",],active:false},
+            up:    {keys:["w","upArrow"],active:false},
+            down:  {keys:["s",],active:false},
+            left:  {keys:["a",],active:false},
+            right: {keys:["d",],active:false},
+            jump:  {keys:[" ",],active:false},
+            dash:  {keys:["shift",],active:false},
+            select:{keys:["E"],active:false},
         }
         document.addEventListener("keydown", (event) => {
             for (const input of Object.values(this.pressedInputs)) {
@@ -382,6 +383,8 @@ export class Player extends physicsObject {
         
         this.doesPlatformVelocity = true;
 
+        this.selectHoldTime = 0;
+
     }
     
     spawn(level) {    
@@ -428,6 +431,10 @@ export class Player extends physicsObject {
         this.xInput = xInput
         this.yInput = yInput
 
+        // select button
+        if (this.pressedInputs.select.active) {
+            this.selectHoldTime += deltaTime;
+        } else this.selectHoldTime = 0;
 
         // press crouch when in air all velocity transferred to down and ground slam
         
@@ -435,7 +442,7 @@ export class Player extends physicsObject {
 
         // crouch and sliding
         this.targetCrouch = yInput < 0 // tried this not needed once added 0.001
-        
+
 
 
         logError(`facing rotation: ${this.facingRotation.toFixed(3)} facing vector: x:${this.facingVector.x.toFixed(3)} y:${this.facingVector.y.toFixed(3)}`)
@@ -856,6 +863,65 @@ export class Platform extends physicsObject {
 }
 
 export class Portal extends gameObject {
+
+    constructor(location, data, levelID) {
+        super(location)
+
+
+        if (data==="255") this.goToOtherLevel = true
+        else this.goToOtherLevel = false
+
+        this.id = data
+        this.levelID
+
+        this.type == "portal"
+        this.ticking = true
+
+        this.baseBrightness = 0.8;
+
+        this.faces.push(new Quad(this.getFaceVertecies("front"), this.brightness))
+
+    }
+
+    teleportLocation() {
+        
+        const otherLevel = this.levelID == "main" ? "second":"main"
+
+        if (this.goToOtherLevel) return { levelID: otherLevel, location: this.location }
+        else return { levelID: this.levelID, location: this.findOtherPortal(this.level) }
+
+    }
+
+    findOtherPortal(level) {
+
+        const portal = level.objects.filter(o => (o.type == "portal" && o.id == this.id) )
+
+        return portal
+
+    }
+
+
+    tick(deltaTime, level) {
+        this.level = level
+
+        this.brightness = this.baseBrightness
+
+        if ( !this.isCollidingWith(this.level.player) ) return
+
+        const selectHoldTime = this.level.player.selectHoldTime
+
+        if ( selectHoldTime > 0 && selectHoldTime < 1 ) {
+
+            const {level, location} = this.teleportLocation()
+
+            this.level.player.location = location
+            this.level.player.level = level
+
+            this.player.selectHoldTime = 0
+
+        }
+
+    }
 
 }
 

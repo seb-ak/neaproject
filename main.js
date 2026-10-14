@@ -5,16 +5,17 @@ import { UiController } from "./ui.js"
 const ZOOMOUT = 0;
 
 class Level {
-    constructor(levelFolder, z, player) {
+    constructor(levelID, levelFolder, z, player) {
         this.levelFolder = levelFolder;
+        this.levelId = levelID;
         this.z = z;
-        this.player = player
+        this.player = player;
 
         this.objects = [];
         this.gridSize = 0.3;
         this.gridCollision = [];
         this.gridObjects = [];
-        this.mainQuad
+        this.mainQuad;
         
         this.loaded = false;
         this.texture = undefined;
@@ -82,7 +83,7 @@ class Level {
 
 
                 if (hex === "#ff00ff") {
-                    this.objects.push( new Portal(new vec3(x*this.gridSize, y*this.gridSize, 0+this.gridSize)) );
+                    this.objects.push( new Portal(new vec3(x*this.gridSize, y*this.gridSize, 0+this.gridSize), data) );
                 }
             }
         }
@@ -419,11 +420,11 @@ class Main {
         
         this.player = new Player(new vec3(0,0,0))
         this.level = {
-            main: new Level("test1", 0, this.player),
-            second: new Level("test1", -15, this.player),
+            main: new Level("main", "test1", 0, this.player),
+            second: new Level("second","test1", -15, this.player),
         };
 
-        this.levelLayer = "main"
+        // this.levelLayer = "main"
 
         this.loadTextures();
 
@@ -475,7 +476,7 @@ class Main {
         if (this.deltaTime > 1 || this.deltaTime < 0.005) console.log(this.deltaTime)
 
         if (this.player.initialSpawn) {
-            this.player.spawn(this.level[this.player.level]);
+            this.player.spawn(this.level[this.player.levelID]);
         }
 
         const paused = !(
@@ -487,7 +488,7 @@ class Main {
         
             for (const level of Object.values(this.level)) level.tick(this.deltaTime);
     
-            this.player.tick(this.deltaTime, this.level[this.player.level])
+            this.player.tick(this.deltaTime, this.level[this.player.levelID])
 
 
             // switch between game ui and death screen when player is dead // 
