@@ -12,7 +12,7 @@ export function clearLog() {
 
 
 export class vec3 {
-    constructor(x=NaN, y=NaN, z=NaN) {
+    constructor(x=0, y=0, z=0) {
         this.x = x
         this.y = y
         this.z = z
@@ -78,6 +78,10 @@ export class vec3 {
             this.x * vec.y - this.y * vec.x
         )
     }
+
+    copy() {
+        return new vec3(this.x, this.y, this.z)
+    }
 }
 
 export class Quad {
@@ -90,7 +94,10 @@ export class Quad {
         const a = vertices[1].sub(vertices[0])
         const b = vertices[2].sub(vertices[0])
         this.isFrontFace = Math.abs(a.cross(b).z) > 0
-        this.isMainQuad = this.isFrontFace
+        if (this.isFrontFace) {
+            this.isMainQuad = true
+            this.doCulling = false            
+        }
     }
 
     project2d(f, w, h, cameraLoc, offset) {

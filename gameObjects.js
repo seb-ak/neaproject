@@ -123,7 +123,7 @@ export class levelTile extends gameObject {
 
 export class SpawnPoint extends gameObject {
     constructor(location) {
-        location = location.add(new vec3(-9,10,0)) // moved to spawn next to spikes
+        // location = location.add(new vec3(-9,10,0)) // moved to spawn next to spikes
         super(location);
         this.type = "SpawnPoint"
         this.collision = false;
@@ -225,7 +225,7 @@ class physicsObject extends gameObject {
         for (const obj of this.collisionObjects) {
             this.resolveY(obj);
         }
-        if (this.isCollidingWith(player)) {
+        if (this.isCollidingWith(player) && this != player) {
             player.firstCheckDirection = "y";
         }
     }
@@ -234,7 +234,7 @@ class physicsObject extends gameObject {
         for (const obj of this.collisionObjects) {
             this.resolveX(obj);
         }
-        if (this.isCollidingWith(player)) {
+        if (this.isCollidingWith(player) && this != player) {
             player.firstCheckDirection = "x";
         }
     }
@@ -270,7 +270,10 @@ class physicsObject extends gameObject {
         if (this.collidingSides.top && this.collidingSides.bottom) this.health = 0;
 
         const obj = this.touchingPhysicsObjects[0];
-        if (obj) this.platformVelocity = obj.velocity;
+        if (obj) {
+            this.platformVelocity = obj.velocity//.sub(new vec3(0,-0.1));
+            // if (this.platformVelocity.y < 0) this.platformVelocity.y -= this.baseGravity - 2
+        }
         else this.platformVelocity = new vec3(0, 0, 0);
 
         if (this.type === "player") this.firstCheckDirection = "y"
@@ -284,13 +287,13 @@ class physicsObject extends gameObject {
     }
 
     getCollisionObjects(level) {
-        const o = [...level.objects
+        const o = [...level.objectsWithCollision
             .filter( obj => (
                 obj !== this && obj.collision &&
                 (obj.type != "platform" ||
                     (
                         (obj.location.y+obj.size.y*0.9) <= this.location.y && 
-                        (this.velocity.y - obj.velocity.y) <= 0
+                        (this.velocity.y + this.platformVelocity.y - obj.velocity.y) <= 0 // had to add + this.platformVelocity.y 
                     )
                 )
             )),
@@ -325,13 +328,13 @@ export class Player extends physicsObject {
         this.location.z += this.size.z/2
 
         this.pressedInputs = {
-            up:    {keys:["w","upArrow"],active:false},
-            down:  {keys:["s",],active:false},
-            left:  {keys:["a",],active:false},
-            right: {keys:["d",],active:false},
-            jump:  {keys:[" ",],active:false},
+            up:    {keys:["w",],active:false},
+            down:  {keys:["s","arrowdown"],active:false},
+            left:  {keys:["a","arrowleft"],active:false},
+            right: {keys:["d","arrowright"],active:false},
+            jump:  {keys:[" ","arrowup"],active:false},
             dash:  {keys:["shift",],active:false},
-            select:{keys:["E"],active:false},
+            select:{keys:["e","enter"],active:false},
         }
         document.addEventListener("keydown", (event) => {
             for (const input of Object.values(this.pressedInputs)) {
@@ -365,7 +368,7 @@ export class Player extends physicsObject {
         this.isOnFloor = false;
 
         this.acceleration = new vec3(0.25, 0, 0)
-        this.deceleration = new vec3(0.1, 0, 0)
+        this.deceleration = new vec3(0.14, 0, 0)
         this.maxVel = new vec3(6, Infinity, Infinity)
 
         this.justJumped = false;
@@ -385,12 +388,19 @@ export class Player extends physicsObject {
 
         this.selectHoldTime = 0;
 
+        this.activeSpawn = undefined;
+
+        this.maxHealth = 2;
+
+        this.teleportTransition = 0;
+        this.teleportTransitionSpeed = 1;
+        this.teleportDirection = 0;
+
     }
     
-    spawn(level) {    
-                // console.log("try spawn")
+    spawn(level) {
 
-        this.health = 1;
+        this.health = this.maxHealth;
 
         this.deathTimer = -1;
 
@@ -406,49 +416,60 @@ export class Player extends physicsObject {
 
         this.invincibleTime = this.maxInvincibleTime
 
-        for (const obj of level.objects) {
-            if (obj.type !== "SpawnPoint") continue;
-            // this.location = obj.location;
-            this.location.x = obj.location.x;
-            this.location.y = obj.location.y;
+        if (this.activeSpawn == undefined) {
+            for (const obj of level.objects) {
+                if (obj.type !== "SpawnPoint") continue;
+                this.activeSpawn = { location: obj.location, levelID:level.levelID }
+                break;
+            }
+            return;
         }
+
+        this.location = this.activeSpawn.location.copy()
+        this.levelID = this.activeSpawn.levelID
+        this.teleportTransition = (this.activeSpawn=="main")? 0:1
+
+        this.updateFaces();
     }
 
-    doInputs(deltaTime) {
-        /////////////////////
-        // movement logic //
-        ///////////////////
-        let xInput = this.pressedInputs.right.active - this.pressedInputs.left.active
-        let yInput = this.pressedInputs.up.active - this.pressedInputs.down.active
+    doInputs(deltaTime, logs) {
+        //////////////////
+        // input logic //
+        ////////////////
+        this.xInput = this.pressedInputs.right.active - this.pressedInputs.left.active
+        this.yInput = this.pressedInputs.up.active - this.pressedInputs.down.active
         const deadzone = 0.2
-        if (Math.abs(xInput) < deadzone) xInput = 0
-        if (Math.abs(yInput) < deadzone) yInput = 0
+        if (Math.abs(this.xInput) < deadzone) this.xInput = 0
+        if (Math.abs(this.yInput) < deadzone) this.yInput = 0
 
-        if(xInput!==0 || yInput!==0) {
-            this.facingVector = new vec3(xInput, yInput, 0).normalise()
-            this.facingRotation = Math.atan2(yInput, xInput);
+        if(this.xInput!==0 || this.yInput!==0) {
+            this.facingVector = new vec3(this.xInput, this.yInput, 0).normalise()
+            this.facingRotation = Math.atan2(this.yInput, this.xInput);
         }
-        this.xInput = xInput
-        this.yInput = yInput
 
         // select button
         if (this.pressedInputs.select.active) {
-            this.selectHoldTime += deltaTime;
+            if (this.selectHoldTime != -1) {
+                this.selectHoldTime += deltaTime;
+            }
         } else this.selectHoldTime = 0;
 
-        // press crouch when in air all velocity transferred to down and ground slam
         
+        if (this.levelID === "main") this.mainLevelInputs(deltaTime, logs)
 
+        if (this.levelID === "second") this.mainLevelInputs(deltaTime, logs)
+        // if (this.levelID === "second") this.secondLevelInputs(deltaTime)
 
-        // crouch and sliding
-        this.targetCrouch = yInput < 0 // tried this not needed once added 0.001
+    }
 
+    mainLevelInputs(deltaTime, logs = true) {
 
+        // press crouch when in air all velocity transferred to down and ground slam
 
-        logError(`facing rotation: ${this.facingRotation.toFixed(3)} facing vector: x:${this.facingVector.x.toFixed(3)} y:${this.facingVector.y.toFixed(3)}`)
+        if (logs) logError(`facing rotation: ${this.facingRotation.toFixed(3)} facing vector: x:${this.facingVector.x.toFixed(3)} y:${this.facingVector.y.toFixed(3)}`)
         
         // base acceleration
-        let dx = xInput*this.acceleration.x
+        let dx = this.xInput*this.acceleration.x
         if (this.isDashing) {
             dx = 0
         } else if (this.isSliding) {
@@ -458,7 +479,7 @@ export class Player extends physicsObject {
         }
 
         // if switching direction switch faster
-        if (Math.sign(xInput) != Math.sign(this.velocity.x)) {
+        if (Math.sign(this.xInput) != Math.sign(this.velocity.x)) {
             dx *= 2
         }
 
@@ -471,7 +492,7 @@ export class Player extends physicsObject {
 
         if (dx > 0) { if (this.velocity.x + dx > maxVel.x) dx = Math.max(0, maxVel.x - this.velocity.x) }
         else if (dx < 0) { if (this.velocity.x + dx < -maxVel.x) dx = Math.min(0, -maxVel.x - this.velocity.x) }
-        logError(`dx: ${dx.toFixed(3)}`)
+        if (logs) logError(`dx: ${dx.toFixed(3)}`)
         this.velocity.x += dx
 
         // this.velocity.x = Math.max(-this.maxVel.x, Math.min(this.maxVel.x, this.velocity.x))
@@ -491,7 +512,7 @@ export class Player extends physicsObject {
 
         // if just hit floor decelerate
         if (this.isOnFloor && !this.lastOnFloor) {
-            let decelerate = this.deceleration.x * 2
+            let decelerate = this.deceleration.x * 5
             if (this.isSliding) decelerate = -1
 
             if (this.velocity.x>0) this.velocity.x = Math.max(0, this.velocity.x - decelerate)
@@ -561,7 +582,7 @@ export class Player extends physicsObject {
             this.canDash = true;
         }
 
-        logError(`dashing: ${this.isDashing}`)
+        if (logs) logError(`dashing: ${this.isDashing}`)
         
 
 
@@ -572,31 +593,35 @@ export class Player extends physicsObject {
         const threshold = 3;
         if (this.isDashing) { // no gravity when dashing
             gravity = 0;
-            logError("gravity: none");
+            if (logs) logError("gravity: none");
         }        
         else if (!this.isOnFloor && this.velocity.y < -threshold) { // increase gravity when falling
             gravity*=1.2;
-            logError("gravity: high");
+            if (logs) logError("gravity: high");
         }
         else if (!this.isOnFloor && this.velocity.y < threshold) { // decrease gravity at peak of jump
             gravity*=0.3;
-            logError("gravity: low");
+            if (logs) logError("gravity: low");
         }
         else {
             gravity = this.baseGravity;
-            logError("gravity: normal")
+            if (logs) logError("gravity: normal")
         }
 
         this.velocity.y -= gravity * deltaTime * 144
 
-        logError(`gravity:${gravity.toFixed(3)}`)
+        if (logs) logError(`gravity:${gravity.toFixed(3)}`)
 
     }
 
-    tryCrouch(level) {
+    secondLevelInputs() {
+
+    }
+
+    tryCrouch() {
         
         // crouch and sliding
-        if (this.targetCrouch && this.size.y != this.crouchHeight) {
+        if (this.yInput < 0 && this.size.y != this.crouchHeight) {
             this.size.y = this.crouchHeight;
             
             const colliding = this.checkCollisions(this.collisionObjects);
@@ -609,7 +634,7 @@ export class Player extends physicsObject {
                     this.isSliding = true
                 }
             }
-        } else if (!this.targetCrouch && this.size.y != this.baseHeight) {
+        } else if (this.yInput >= 0 && this.size.y != this.baseHeight) {
             this.size.y = this.baseHeight;
             
             const colliding = this.checkCollisions(this.collisionObjects);
@@ -626,7 +651,13 @@ export class Player extends physicsObject {
         }
     }
 
+    updateFaces() {
+        this.faces[0].vertices3d = this.getFaceVertecies("front");
+    }
+
     tick(deltaTime, level) {
+        const logs = false;
+
         if (!level.loaded) return;
         if (this.initialSpawn) {this.spawn(level); this.initialSpawn = false;}
 
@@ -641,15 +672,28 @@ export class Player extends physicsObject {
             return;
         }
 
+        if (this.teleportDirection != 0) {
+
+            this.teleportTransition = Math.min(1, Math.max(0,
+                this.teleportTransition + this.teleportDirection * deltaTime * this.teleportTransitionSpeed
+            ))
+
+            const distance = 15
+            this.location.z = distance - distance * this.teleportTransition
+
+            console.log(this.teleportDirection, this.teleportTransition, this.location.z)
+
+        }
+
         this.collisionObjects = this.getCollisionObjects(level);
-        this.doInputs(deltaTime);
+        this.doInputs(deltaTime, logs);
         
         this.doCollision(deltaTime, level);
-        this.tryCrouch(level);
+        this.tryCrouch();
 
-        logError(`justJumped:${this.justJumped} on floor:${this.isOnFloor} jump time:${this.jumpTime.toFixed(3)}`)
-        logError(`vy:${this.velocity.y.toFixed(3)} xy:${this.velocity.x.toFixed(3)} x:${this.location.x.toFixed(3)} y:${this.location.y.toFixed(3)}`)
-        logError(`platform vy:${this.platformVelocity.y.toFixed(3)} xy:${this.platformVelocity.x.toFixed(3)}`)
+        if (logs) logError(`justJumped:${this.justJumped} on floor:${this.isOnFloor} jump time:${this.jumpTime.toFixed(3)}`)
+        if (logs) logError(`vy:${this.velocity.y.toFixed(3)} xy:${this.velocity.x.toFixed(3)} x:${this.location.x.toFixed(3)} y:${this.location.y.toFixed(3)}`)
+        if (logs) logError(`platform vy:${this.platformVelocity.y.toFixed(3)} xy:${this.platformVelocity.x.toFixed(3)}`)
 
 
         for (const obj of this.touchingPhysicsObjects) {
@@ -658,7 +702,7 @@ export class Player extends physicsObject {
         }
         if (this.location.y < -10) this.damage(1)
 
-        this.faces[0].vertices3d = this.getFaceVertecies("front");
+        this.updateFaces()
     }
 
 }
@@ -867,27 +911,37 @@ export class Portal extends gameObject {
     constructor(location, data, levelID) {
         super(location)
 
-
         if (data==="255") this.goToOtherLevel = true
         else this.goToOtherLevel = false
 
         this.id = data
-        this.levelID
+        this.levelID = levelID
 
         this.type == "portal"
         this.ticking = true
 
-        this.baseBrightness = 0.8;
+        this.brightness = 0.8;
 
         this.faces.push(new Quad(this.getFaceVertecies("front"), this.brightness))
+        
+        this.load();
+    }
 
+    async load() {
+        this.textures = [
+            await loadImage(`./textures/portal/portal0.png`),
+            await loadImage(`./textures/portal/portal1.png`),
+            await loadImage(`./textures/portal/portal2.png`),
+            await loadImage(`./textures/portal/portal3.png`),
+        ]
+        this.loaded = true
     }
 
     teleportLocation() {
         
-        const otherLevel = this.levelID == "main" ? "second":"main"
+        const otherLevelID = (this.levelID == "main") ? "second":"main"
 
-        if (this.goToOtherLevel) return { levelID: otherLevel, location: this.location }
+        if (this.goToOtherLevel) return { levelID: otherLevelID, location: this.location }
         else return { levelID: this.levelID, location: this.findOtherPortal(this.level) }
 
     }
@@ -904,20 +958,29 @@ export class Portal extends gameObject {
     tick(deltaTime, level) {
         this.level = level
 
-        this.brightness = this.baseBrightness
+        if (this.loaded) {
+            this.faces[0].brightness = this.textures[0].image
+        }
 
-        if ( !this.isCollidingWith(this.level.player) ) return
+        const player = this.level.player
 
-        const selectHoldTime = this.level.player.selectHoldTime
+        if (player.levelID != this.levelID) return
+
+        if ( !this.isCollidingWith(player) ) return
+
+        const selectHoldTime = player.selectHoldTime
 
         if ( selectHoldTime > 0 && selectHoldTime < 1 ) {
 
-            const {level, location} = this.teleportLocation()
+            const {levelID, location} = this.teleportLocation()
 
-            this.level.player.location = location
-            this.level.player.level = level
+            player.location = location.copy()
+            player.levelID = levelID
+            player.teleportDirection = player.teleportTransition==0 ? 1:-1
+            
+            player.velocity = new vec3()
 
-            this.player.selectHoldTime = 0
+            player.selectHoldTime = -1
 
         }
 
@@ -944,7 +1007,9 @@ export class Spike extends physicsObject {
         const left = this.getFaceVertecies("left"); left[0] = topMiddle; left[1] = topMiddle;
         const right = this.getFaceVertecies("right"); right[0] = topMiddle; right[1] = topMiddle;
 
-        this.faces.push(new Quad(front, this.brightness))
+        const face = new Quad(front, this.brightness)
+        face.doCulling = false
+        this.faces.push(face)
         // this.faces.push(new Quad(left, this.brightness))
         // this.faces.push(new Quad(right, this.brightness))
         // 2d looks better than 3d

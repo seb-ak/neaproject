@@ -48,6 +48,8 @@ export class UiController {
             }
             console.log(this.main.settings.colours[7])
             this.main.settings.colourScheme = 7
+
+            this.main.saveSettings();
         }
         if (event.code === "KeyV") {
             const differ = 200
@@ -58,6 +60,8 @@ export class UiController {
             }
             console.log(this.main.settings.colours[7])
             this.main.settings.colourScheme = 7
+
+            this.main.saveSettings();
         }
         // random colours //
 
@@ -167,16 +171,20 @@ export class UiController {
             const settingsTitle = new UiElement(settingsScreen, "Settings", 3,0, 6,1);
 
 
-            const dithering = new UiButton(settingsScreen, "Dithering on", 1,2, 6,1);
+            const dithering = new UiButton(settingsScreen, `Dithering ${this.main.settings.dithering ? "on" : "off"}`, 1,2, 6,1);
             dithering.action = () => {
                 this.main.settings.dithering = !this.main.settings.dithering;
                 dithering.text = `Dithering ${this.main.settings.dithering ? "on" : "off"}`;
+
+                this.main.saveSettings();
             }
 
-            const colourScheme = new UiButton(settingsScreen, "Colour 0", 1,4, 6,1);
+            const colourScheme = new UiButton(settingsScreen, `Colour ${this.main.settings.colourScheme}`, 1,4, 6,1);
             colourScheme.action = () => {
                 this.main.settings.colourScheme = (this.main.settings.colourScheme + 1) % this.main.settings.colours.length;
                 colourScheme.text = `Colour ${this.main.settings.colourScheme}`;
+            
+                this.main.saveSettings();
             }
 
 
@@ -302,7 +310,11 @@ export class UiController {
             ctx.globalAlpha = 1.0;
         }
 
-        this.activeScreen.draw(ctx);
+        
+        const colour = this.main.settings.dithering ?
+            {dark:{r:0,g:0,b:0},light:{r:255,g:255,b:255}} : this.main.settings.colours[this.main.settings.colourScheme]
+
+        this.activeScreen.draw(ctx, colour);
 
     }
 
@@ -323,10 +335,10 @@ class UiScreen {
 
     }
 
-    draw(ctx) {
+    draw(ctx, colour) {
 
         for (const e of this.elements) {
-            e.draw(ctx, this.gridSize);
+            e.draw(ctx, this.gridSize, colour);
         }
     }
 
@@ -429,7 +441,7 @@ class UiElement {
 
     } 
 
-    draw(ctx, gridSize) {
+    draw(ctx, gridSize, colour) {
 
         const borderWidth = this.borderWidth 
             * ((this.selected && this.type != "none") ? 2 : 1) 
@@ -448,9 +460,9 @@ class UiElement {
         const height = this.height * gridSize;
 
 
-        const borderColor =     `rgba(${borderBrightness * 255},        ${borderBrightness * 255},      ${borderBrightness * 255},      1)`;
-        const backgroundColor = `rgba(${backgroundBrightness * 255},    ${backgroundBrightness * 255},  ${backgroundBrightness * 255},  1)`;
-        const textColor =       `rgba(${textBrightness * 255},          ${textBrightness * 255},        ${textBrightness * 255},        1)`;
+        const borderColor =     `rgba(${colour.light.r * borderBrightness},        ${colour.light.g * borderBrightness},      ${colour.light.b * borderBrightness},      1)`;
+        const backgroundColor = `rgba(${colour.dark.r * backgroundBrightness},    ${colour.dark.g * backgroundBrightness},  ${colour.dark.b * backgroundBrightness},  1)`;
+        const textColor =       `rgba(${colour.light.r * textBrightness},          ${colour.light.g * textBrightness},        ${colour.light.b * textBrightness},        1)`;
 
         ctx.lineCap = "butt";
         ctx.lineJoin = "butt";

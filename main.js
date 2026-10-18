@@ -7,7 +7,7 @@ const ZOOMOUT = 0;
 class Level {
     constructor(levelID, levelFolder, z, player) {
         this.levelFolder = levelFolder;
-        this.levelId = levelID;
+        this.levelID = levelID;
         this.z = z;
         this.player = player;
 
@@ -42,7 +42,6 @@ class Level {
 
     generateLevel() {
 
-
         const platforms = {}
 
         // COLLISION //
@@ -56,6 +55,18 @@ class Level {
                 
                 this.gridCollision[y][x] = (hex === "#000000")
                 if (this.gridCollision[y][x]) {
+
+                    const up =    (y + 1 < this.collision.array.length      ) ? this.collision.array[y + 1][x].hex=="#000000ff" : false
+                    const down =  (y - 1 >= 0                               ) ? this.collision.array[y - 1][x].hex=="#000000ff" : false
+                    const left =  (x - 1 >= 0                               ) ? this.collision.array[y][x - 1].hex=="#000000ff" : false
+                    const right = (x + 1 < this.collision.array[y].length   ) ? this.collision.array[y][x + 1].hex=="#000000ff" : false
+                    
+                    if (up && down && left && right) {
+                        // console.log("skipped collision");
+                        // skip if fully enclosed
+                        continue;
+                    }
+
                     const o = new gameObject(new vec3(x*this.gridSize, y*this.gridSize, 0));
                     o.size = new vec3(this.gridSize, this.gridSize, this.gridSize);
                     o.collision = true;
@@ -81,9 +92,8 @@ class Level {
                     this.objects.push( new Spike(new vec3(x*this.gridSize, y*this.gridSize, 0+this.gridSize), this.gridSize) );
                 }
 
-
                 if (hex === "#ff00ff") {
-                    this.objects.push( new Portal(new vec3(x*this.gridSize, y*this.gridSize, 0+this.gridSize), data) );
+                    this.objects.push( new Portal(new vec3(x*this.gridSize, y*this.gridSize, 0+this.gridSize), data, this.levelID) );
                 }
             }
         }
@@ -144,6 +154,9 @@ class Level {
 
         this.objects.push(this.mainQuad);
 
+
+        this.objectsWithCollision = this.objects.filter(obj => obj.collision)
+
     }
     
     tick(deltaTime) {
@@ -155,7 +168,7 @@ class Level {
         }
     }
 
-    draw(ctx, camera, screen, player) {
+    draw(ctx, camera, screen, player, colour) {
 
         const w=screen.width
         const h=screen.height
@@ -208,7 +221,7 @@ class Level {
         
         for (let i = 0; i < toDraw.order.length; i++) {
             const o = toDraw.order[i]
-            this.drawQuad(ctx, toDraw.vertices[o], toDraw.brightness[o], toDraw.distance[o])
+            this.drawQuad(ctx, toDraw.vertices[o], toDraw.brightness[o], toDraw.distance[o], colour)
         }
 
         // const [
@@ -226,11 +239,13 @@ class Level {
 
     }
 
-    drawQuad(ctx, vertices, brightness, distance) {
+    drawQuad(ctx, vertices, brightness, distance, light) {
+
         function drawSubQuad(ctx, points, subQuadBrightness) {
             // console.log(brightness)
-            const c = Math.floor(subQuadBrightness * 255);
-            const colour = `rgb(${c}, ${c}, ${c})`;
+            // const c = Math.floor(subQuadBrightness * 255);
+            const c = subQuadBrightness
+            const colour = `rgb(${Math.floor(light.r * c)}, ${Math.floor(light.g * c)}, ${Math.floor(light.b * c)})`;
             // console.log(colour)
 
             ctx.lineWidth = 2;
@@ -250,7 +265,7 @@ class Level {
             ctx.closePath();
             ctx.fill();
             ctx.stroke();
-            
+
         }
 
         const isTexture = typeof brightness != "number"
@@ -272,7 +287,7 @@ class Level {
             const width = Math.floor(vertices[2].x - x)
             const height = Math.floor(vertices[2].y - y)
 
-            const key = `${texture.src} ${width} ${height} ${adjustedBrightness}`;
+            const key = `${texture.src} ${width} ${height} ${adjustedBrightness} ${light.r} ${light.g} ${light.b}`;
 
             const temp = this.tempScaledTextures.get(key);
 
@@ -292,9 +307,34 @@ class Level {
                 canvas.height = height;
                 const tempCtx = canvas.getContext("2d");
                 tempCtx.imageSmoothingEnabled = false;
+
                 tempCtx.drawImage(texture, 0, 0, width, height);
+
+                const tintColour = `rgb(${light.r}, ${light.g}, ${light.b})`;
+                if (tintColour != "rgb(255, 255, 255)") {
+                    tempCtx.globalCompositeOperation = 'multiply';
+                    tempCtx.fillStyle = tintColour;
+                    tempCtx.fillRect(0, 0, width, height);
+
+                    tempCtx.globalCompositeOperation = 'source-over';
+                }
+                
                 tempCtx.fillStyle = `rgba(0, 0, 0, ${1 - adjustedBrightness})`;
                 tempCtx.fillRect(0, 0, width, height);
+
+                tempCtx.globalCompositeOperation = 'destination-in';
+                tempCtx.drawImage(texture, 0, 0, width, height);
+
+                tempCtx.globalCompositeOperation = 'source-over';
+
+
+                // tempCtx.globalCompositeOperation = 'colour';
+
+                // const tintColour = `rgba(${light.r}, ${light.g}, ${light.b} ${1 - adjustedBrightness})`;
+                // tempCtx.fillStyle = tintColour;
+                // tempCtx.fillRect(0, 0, width, height);
+
+                // tempCtx.globalCompositeOperation = 'source-over';
 
                 this.tempScaledTextures.set(key, canvas);
         
@@ -392,6 +432,7 @@ class Main {
                 {dark: {r:42, g:12, b:64}, light: {r:118, g: 146, b:249}},
             ],
         }
+        this.loadSettings();
 
         this.deltaTime = 1
         this.lastTime = 0
@@ -434,8 +475,17 @@ class Main {
 
     }
 
+    saveSettings()  {
+        localStorage.setItem('settings', JSON.stringify(this.settings));
+    }
+
+    loadSettings() {
+        const settings = localStorage.getItem('settings');
+        if (settings) this.settings = JSON.parse(settings);
+    }
+
     async loadTextures() {
-        const texture = await loadImage(`./textures/vignette3.png`);
+        const texture = await loadImage(`./textures/vignette/vignette3.png`);
         this.vignette = texture.image;
 
         this.loaded = true;
@@ -473,7 +523,12 @@ class Main {
             }
         }
 
-        if (this.deltaTime > 1 || this.deltaTime < 0.005) console.log(this.deltaTime)
+        if (this.deltaTime > 1/30 || this.deltaTime < 1/1000) {
+            console.log(this.deltaTime);
+
+            requestAnimationFrame(this.update.bind(this));
+            return;
+        }
 
         if (this.player.initialSpawn) {
             this.player.spawn(this.level[this.player.levelID]);
@@ -488,7 +543,9 @@ class Main {
         
             for (const level of Object.values(this.level)) level.tick(this.deltaTime);
     
-            this.player.tick(this.deltaTime, this.level[this.player.levelID])
+            const activeLevel = this.level[this.player.levelID]
+
+            this.player.tick(this.deltaTime, activeLevel)
 
 
             // switch between game ui and death screen when player is dead // 
@@ -506,16 +563,19 @@ class Main {
                 this.camera.z
                 // -4 - ZOOMOUT
             )
-            const diff = this.player.location
-                .add(new vec3(0,1.0,0))
-                .add(vel)
-                .sub(this.camera.location)
-                .div(8)
-                .mult(this.deltaTime*60)
+            const diff = new vec3(
+                this.player.location.x,
+                this.player.location.y+1,
+                0
+            ).add(vel)
+             .sub(this.camera.location)
+             .div(8)
+             .mult(this.deltaTime*60)
     
             this.camera.location.x += diff.x
             this.camera.location.y += diff.y
-            this.camera.location.z += diff.z
+            this.camera.location.z = Math.round((this.camera.location.z + diff.z)*100)/100
+            
 
             this.camera.fov = Math.abs(this.player.velocity) > 5? 71 : 70
             
@@ -546,17 +606,25 @@ class Main {
     }
 
     draw() {
-        // this.ctx.fillStyle = `#111`
-        this.ctx.fillStyle = `#000`
+        const colour = this.settings.dithering ?
+            {dark:{r:0,g:0,b:0},light:{r:255,g:255,b:255}} : this.settings.colours[this.settings.colourScheme]
+
+        this.ctx.fillStyle = `rgb(${colour.dark.r}, ${colour.dark.g}, ${colour.dark.b})`
         this.ctx.fillRect(0, 0, this.screen.width, this.screen.height);
 
-        if (this.level["second"] && this.level["second"].loaded) {
-            this.level["second"].draw(this.ctx, this.camera, this.screen, this.player.level=="second"? this.player : undefined);
+        for (const levelID of ["second", "main"]) {
+
+            if (!this.level[levelID]) continue
+            if (!this.level[levelID].loaded) continue
+
+            this.level[levelID].draw(
+                this.ctx, this.camera, this.screen,
+                this.player.levelID==levelID? this.player : undefined,
+                colour.light
+            );
+        
         }
 
-        if (this.level["main"] && this.level["main"].loaded) {
-            this.level["main"].draw(this.ctx, this.camera, this.screen, this.player.level=="main"? this.player : undefined);
-        }
         
         // vignette
         this.ctx.globalAlpha = 0.4;
