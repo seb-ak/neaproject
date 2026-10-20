@@ -2,8 +2,6 @@ import { logError, clearLog, vec3, loadImage, Quad } from "./utils.js";
 import { gameObject, levelTile, SpawnPoint, Player, Enemy, Platform, Portal, Spike } from "./gameObjects.js";
 import { UiController } from "./ui.js"
 
-const ZOOMOUT = 0;
-
 class Level {
     constructor(levelID, levelFolder, z, player) {
         this.levelFolder = levelFolder;
@@ -168,19 +166,13 @@ class Level {
         }
     }
 
-    draw(ctx, camera, screen, player, colour) {
+    draw(ctx, camera, screen, player, colour, cameraIsMoving) {
 
         const w=screen.width
         const h=screen.height
         const fovRad = camera.fov * Math.PI/180;
         const f = w / (2 * Math.tan(fovRad/2));
 
-        const resolution = 20; // camera snaps to a grid to reduce jittering of level when slowly
-        // const cameraLoc = new vec3(
-        //     Math.floor(camera.location.x*resolution)/resolution,
-        //     Math.floor(camera.location.y*resolution)/resolution,
-        //     Math.floor(camera.location.z*resolution)/resolution,
-        // )
         const cameraLoc = camera.location
         
         const toDraw = {
@@ -221,7 +213,7 @@ class Level {
         
         for (let i = 0; i < toDraw.order.length; i++) {
             const o = toDraw.order[i]
-            this.drawQuad(ctx, toDraw.vertices[o], toDraw.brightness[o], toDraw.distance[o], colour)
+            this.drawQuad(ctx, toDraw.vertices[o], toDraw.brightness[o], toDraw.distance[o], colour, cameraIsMoving)
         }
 
         // const [
@@ -239,7 +231,7 @@ class Level {
 
     }
 
-    drawQuad(ctx, vertices, brightness, distance, light) {
+    drawQuad(ctx, vertices, brightness, distance, light, cameraIsMoving) {
 
         function drawSubQuad(ctx, points, subQuadBrightness) {
             // console.log(brightness)
@@ -279,6 +271,15 @@ class Level {
 
         // let adjustedBrightness = brightness - (distance*distance)/1000;
         let adjustedBrightness = brightness - distance/20 + 0.3
+        if (!isTexture) {
+
+            const close = distance < 10
+            if (close) {
+                adjustedBrightness = brightness - distance/20 + 0.3
+            } else {
+                adjustedBrightness = brightness - (distance + 3)/25 + 0.35
+            }
+        }
         adjustedBrightness = Math.min(1, Math.max(0, adjustedBrightness));
 
         if (isTexture) {
@@ -287,7 +288,11 @@ class Level {
             const width = Math.floor(vertices[2].x - x)
             const height = Math.floor(vertices[2].y - y)
 
-            const key = `${texture.src} ${width} ${height} ${adjustedBrightness} ${light.r} ${light.g} ${light.b}`;
+            let key = `${texture.src} ${width} ${height} ${adjustedBrightness} ${light.r} ${light.g} ${light.b}`;
+            if (cameraIsMoving) {
+                key = `${texture.src} transition ${light.r} ${light.g} ${light.b}`;
+                // console.log(key)
+            }
 
             const temp = this.tempScaledTextures.get(key);
 
@@ -296,10 +301,11 @@ class Level {
 
             if (temp) {
 
-                ctx.drawImage(temp, x, y);
+                ctx.drawImage(temp, x, y, width, height);
 
             } else {
                 
+                // console.log("new scaled texture")
                 logError("new scaled texture")
 
                 const canvas = document.createElement("canvas");
@@ -556,31 +562,37 @@ class Main {
             }
 
 
-            // move camera //
+            // move camera
+            const baseFov = 70
+            const extraVelocity = Math.abs(this.player.velocity) > 5? 1 : 0
+            const fovMultiplier = 30
+            const zMoveMultiplier = 1/4
+            const extraTransition = (1 - Math.min(1, this.player.teleportTransition))
+
             const vel = new vec3(
                 this.player.velocity.x / 6 * (this.player.isDashing? 1.2 : 1),
                 0,//this.player.velocity.y / 30,
                 this.camera.z
-                // -4 - ZOOMOUT
             )
+
             const diff = new vec3(
                 this.player.location.x,
                 this.player.location.y+1,
-                0
+                extraTransition * zMoveMultiplier
             ).add(vel)
-             .sub(this.camera.location)
-             .div(8)
-             .mult(this.deltaTime*60)
+            .sub(this.camera.location)
+            .div(8)
+            .mult(this.deltaTime*60)
     
             this.camera.location.x += diff.x
             this.camera.location.y += diff.y
             this.camera.location.z = Math.round((this.camera.location.z + diff.z)*100)/100
             
-
-            this.camera.fov = Math.abs(this.player.velocity) > 5? 71 : 70
+            this.camera.fov = baseFov + extraVelocity - extraTransition * fovMultiplier
             
-            // this.camera.fov = Math.abs(this.player.velocity) > 5? 81 : 80
-        
+            this.camera.isMoving = !(this.camera.location.z == this.camera.lastZ)
+            this.camera.lastZ = this.camera.z
+
         } else {
             this.camera.location = this.player.location.add(
                 new vec3(this.ui.mouse.x, this.ui.mouse.y + 1.5, 0).mult(0.001)
@@ -620,7 +632,7 @@ class Main {
             this.level[levelID].draw(
                 this.ctx, this.camera, this.screen,
                 this.player.levelID==levelID? this.player : undefined,
-                colour.light
+                colour.light, this.camera.isMoving
             );
         
         }

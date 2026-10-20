@@ -91,8 +91,8 @@ export class Quad {
         this.brightness = brightness
         this.doCulling = true
 
-        const a = vertices[1].sub(vertices[0])
-        const b = vertices[2].sub(vertices[0])
+        const a = vertices[2].sub(vertices[1])
+        const b = vertices[3].sub(vertices[2])
         this.isFrontFace = Math.abs(a.cross(b).z) > 0
         if (this.isFrontFace) {
             this.isMainQuad = true

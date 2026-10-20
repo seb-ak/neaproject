@@ -433,9 +433,6 @@ export class Player extends physicsObject {
     }
 
     doInputs(deltaTime, logs) {
-        //////////////////
-        // input logic //
-        ////////////////
         this.xInput = this.pressedInputs.right.active - this.pressedInputs.left.active
         this.yInput = this.pressedInputs.up.active - this.pressedInputs.down.active
         const deadzone = 0.2
@@ -449,15 +446,26 @@ export class Player extends physicsObject {
 
         // select button
         if (this.pressedInputs.select.active) {
-            if (this.selectHoldTime != -1) {
-                this.selectHoldTime += deltaTime;
+            if (this.selectHoldTime != -1) this.selectHoldTime += deltaTime;
+        } else {
+            this.selectHoldTime = 0;
+        }
+
+
+        if (this.teleportDirection == 0) {
+
+            if (this.levelID === "main") {
+                this.inputMode = "main"
+                this.mainLevelInputs(deltaTime, logs)
+            } else if (this.levelID === "second") {
+                this.inputMode = "second"
+                this.mainLevelInputs(deltaTime, logs)
+            } else {
+                this.inputMode = "none"
             }
-        } else this.selectHoldTime = 0;
 
+        }
         
-        if (this.levelID === "main") this.mainLevelInputs(deltaTime, logs)
-
-        if (this.levelID === "second") this.mainLevelInputs(deltaTime, logs)
         // if (this.levelID === "second") this.secondLevelInputs(deltaTime)
 
     }
@@ -651,56 +659,72 @@ export class Player extends physicsObject {
         }
     }
 
-    updateFaces() {
-        this.faces[0].vertices3d = this.getFaceVertecies("front");
+    updateFaces(visible=true) {
+        if (visible) {
+            this.faces[0].vertices3d = this.getFaceVertecies("front");
+        } else {
+            this.faces[0].vertices3d = [
+                new vec3(0,0,0),new vec3(0,0,0),new vec3(0,0,0),new vec3(0,0,0)
+            ];
+        }
+    }
+
+    portalTeleport(deltaTime) {
+
+        this.teleportTransition = Math.min(1, Math.max(0,
+            this.teleportTransition + this.teleportDirection * deltaTime * this.teleportTransitionSpeed
+        ))
+
+        const distance = 15
+        if (this.teleportDirection == 1) { // back to front //
+            this.location.z = distance - distance * this.teleportTransition + 0.3
+        } else { // front to back //
+            this.location.z = - distance * this.teleportTransition + 0.3
+        }
+
+        if (this.teleportTransition == 0 || this.teleportTransition == 1) {
+            this.teleportDirection = 0
+        }
+        // console.log(this.teleportDirection, this.teleportTransition, this.location.z)
+
     }
 
     tick(deltaTime, level) {
-        const logs = false;
-
+        const logs = true;
+        
         if (!level.loaded) return;
         if (this.initialSpawn) {this.spawn(level); this.initialSpawn = false;}
 
-        if (this.health == 0 && this.deathTimer == -1) this.deathTimer = 2000;
-        if (this.deathTimer != -1) this.deathTimer -= deltaTime * 1000;
-        if (this.deathTimer != -1 && this.deathTimer <= 0) this.spawn(level);
+        // death
+            if (this.health == 0 && this.deathTimer == -1) this.deathTimer = 2000;
+            if (this.deathTimer != -1) this.deathTimer -= deltaTime * 1000;
+            if (this.deathTimer != -1 && this.deathTimer <= 0) this.spawn(level);
 
-        this.invincibleTime -= deltaTime * 1000
+            this.invincibleTime -= deltaTime * 1000
 
-        if (this.deathTimer != -1) {
-            this.faces[0].vertices3d = [new vec3(0,0,0),new vec3(0,0,0),new vec3(0,0,0),new vec3(0,0,0)];
-            return;
-        }
+            if (this.deathTimer != -1) { this.updateFaces(false); return; }
 
-        if (this.teleportDirection != 0) {
+        // movement
+            this.collisionObjects = this.getCollisionObjects(level);
 
-            this.teleportTransition = Math.min(1, Math.max(0,
-                this.teleportTransition + this.teleportDirection * deltaTime * this.teleportTransitionSpeed
-            ))
+            if (this.teleportDirection != 0) this.portalTeleport(deltaTime)
+            else this.doInputs(deltaTime, logs);
+            
+            this.doCollision(deltaTime, level);
+            if (this.inputMode == "main") this.tryCrouch();
 
-            const distance = 15
-            this.location.z = distance - distance * this.teleportTransition
+        // damage
+            for (const obj of this.touchingPhysicsObjects) {
+                const attack = obj.attackType
+                if (attack && attack.contactDamage > 0) this.damage(attack.contactDamage)
+            }
+            if (this.location.y < -10) this.damage(1)
 
-            console.log(this.teleportDirection, this.teleportTransition, this.location.z)
-
-        }
-
-        this.collisionObjects = this.getCollisionObjects(level);
-        this.doInputs(deltaTime, logs);
-        
-        this.doCollision(deltaTime, level);
-        this.tryCrouch();
-
-        if (logs) logError(`justJumped:${this.justJumped} on floor:${this.isOnFloor} jump time:${this.jumpTime.toFixed(3)}`)
-        if (logs) logError(`vy:${this.velocity.y.toFixed(3)} xy:${this.velocity.x.toFixed(3)} x:${this.location.x.toFixed(3)} y:${this.location.y.toFixed(3)}`)
-        if (logs) logError(`platform vy:${this.platformVelocity.y.toFixed(3)} xy:${this.platformVelocity.x.toFixed(3)}`)
-
-
-        for (const obj of this.touchingPhysicsObjects) {
-            const attack = obj.attackType
-            if (attack && attack.contactDamage > 0) this.damage(attack.contactDamage)
-        }
-        if (this.location.y < -10) this.damage(1)
+        // debug
+            if (logs) logError(`justJumped:${this.justJumped} on floor:${this.isOnFloor} jump time:${this.jumpTime.toFixed(3)}`)
+            if (logs) logError(`vy:${this.velocity.y.toFixed(3)} vx:${this.velocity.x.toFixed(3)}`)
+            if (logs) logError(`location:  x:${this.location.x.toFixed(3)} y:${this.location.y.toFixed(3)} z:${this.location.z.toFixed(3)}`)
+            if (logs) logError(`platform vy:${this.platformVelocity.y.toFixed(3)} xy:${this.platformVelocity.x.toFixed(3)}`)
 
         this.updateFaces()
     }
@@ -853,7 +877,7 @@ export class Platform extends physicsObject {
         this.baseGravity = 0;
 
 
-        this.brightness = 0.6;
+        this.brightness = 0.7;
         this.faces.push(new Quad(this.getFaceVertecies("front"), this.brightness))
 
         this.faces.push(new Quad(this.getFaceVertecies("left"), this.brightness))
@@ -909,6 +933,7 @@ export class Platform extends physicsObject {
 export class Portal extends gameObject {
 
     constructor(location, data, levelID) {
+        location.z -= 0.5
         super(location)
 
         if (data==="255") this.goToOtherLevel = true
@@ -924,6 +949,10 @@ export class Portal extends gameObject {
 
         this.faces.push(new Quad(this.getFaceVertecies("front"), this.brightness))
         
+        this.textureId = Math.floor(Math.random()*4);
+        this.nextTextureTimeMax = 400
+        this.nextTextureTime = 0
+
         this.load();
     }
 
@@ -954,12 +983,17 @@ export class Portal extends gameObject {
 
     }
 
-
     tick(deltaTime, level) {
         this.level = level
 
         if (this.loaded) {
-            this.faces[0].brightness = this.textures[0].image
+            if (this.nextTextureTime < 0) {
+                this.nextTextureTime = this.nextTextureTimeMax;
+                this.textureId = (this.textureId + 1) % this.textures.length
+
+                this.faces[0].brightness = this.textures[this.textureId].image;
+            }
+            this.nextTextureTime -= deltaTime * 1000
         }
 
         const player = this.level.player
@@ -1001,18 +1035,15 @@ export class Spike extends physicsObject {
 
         this.brightness = 0.7;
 
-        const topMiddle = this.getPoint().center.add(new vec3(0, this.size.y/2, 0));
+        const front = this.getFaceVertecies("front");
+        const topMiddle = this.location.add(new vec3(this.size.x/2, this.size.y, 0))
+        front[0] = topMiddle; front[1] = topMiddle;
 
-        const front = this.getFaceVertecies("front"); front[0] = topMiddle; front[1] = topMiddle;
-        const left = this.getFaceVertecies("left"); left[0] = topMiddle; left[1] = topMiddle;
-        const right = this.getFaceVertecies("right"); right[0] = topMiddle; right[1] = topMiddle;
+        console.log(front)
 
         const face = new Quad(front, this.brightness)
         face.doCulling = false
         this.faces.push(face)
-        // this.faces.push(new Quad(left, this.brightness))
-        // this.faces.push(new Quad(right, this.brightness))
-        // 2d looks better than 3d
 
         this.attackType = {
             contactDamage: 1,
