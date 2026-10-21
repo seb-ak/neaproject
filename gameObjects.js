@@ -153,6 +153,8 @@ class physicsObject extends gameObject {
         this.maxInvincibleTime = 800;
 
         this.firstCheckDirection = "y"
+
+        this.bounce = 0
     }
 
     damage(amount, type="emeny") {
@@ -181,7 +183,7 @@ class physicsObject extends gameObject {
 
         const dir = (thisCenter.x < objCenter.x) ? -1 : 1
         this.location.x += overlap.x * dir
-        this.velocity.x = 0;
+        this.velocity.x = -this.velocity.x * this.bounce;
 
         if (dir==1) this.collidingSides.right = true;
         if (dir==-1) this.collidingSides.left = true;
@@ -207,7 +209,7 @@ class physicsObject extends gameObject {
 
         const dir = (thisCenter.y < objCenter.y) ? -1 : 1
         this.location.y += overlap.y * dir
-        this.velocity.y = 0;
+        this.velocity.y = -this.velocity.y * this.bounce;
         if (dir === 1) this.isOnFloor = true;
 
         if (dir==1) this.collidingSides.bottom = true;
@@ -396,6 +398,13 @@ export class Player extends physicsObject {
         this.teleportTransitionSpeed = 1;
         this.teleportDirection = 0;
 
+
+        this.secondAcceleration = 2.0
+        this.secondDeceleration = 3.0
+        this.secondStartBoostMultiplyer = 20
+        this.secondStartBoostDeadzone = 1.5
+        this.secondMaxVelocity = new vec3(5, 5, 0)
+
     }
     
     spawn(level) {
@@ -455,14 +464,16 @@ export class Player extends physicsObject {
         if (this.teleportDirection == 0) {
 
             if (this.levelID === "main") {
+                
                 this.inputMode = "main"
                 this.mainLevelInputs(deltaTime, logs)
+            
             } else if (this.levelID === "second") {
+
                 this.inputMode = "second"
-                this.mainLevelInputs(deltaTime, logs)
-            } else {
-                this.inputMode = "none"
-            }
+                this.secondLevelInputs(deltaTime, logs)
+
+            } else this.inputMode = "none"
 
         }
         
@@ -471,6 +482,8 @@ export class Player extends physicsObject {
     }
 
     mainLevelInputs(deltaTime, logs = true) {
+
+        this.bounce = 0
 
         // press crouch when in air all velocity transferred to down and ground slam
 
@@ -622,7 +635,32 @@ export class Player extends physicsObject {
 
     }
 
-    secondLevelInputs() {
+    secondLevelInputs(deltaTime, logs = true) {
+
+        this.bounce = 0.8
+
+        this.size.y = this.size.x
+
+        const movementVector = new vec3(this.xInput, this.yInput).normalise()
+
+        // const acceleration = (Math.abs(this.velocity.length()) < this.secondStartBoostDeadzone) ?
+        //     this.secondAcceleration * this.secondStartBoostMultiplyer : this.secondAcceleration
+
+        this.velocity = this.velocity.add(movementVector.mult(deltaTime * this.secondAcceleration))
+
+        this.velocity.x = Math.max(-this.secondMaxVelocity.x, Math.min(this.secondMaxVelocity.x, this.velocity.x))
+        this.velocity.y = Math.max(-this.secondMaxVelocity.y, Math.min(this.secondMaxVelocity.y, this.velocity.y))
+
+        if (movementVector.x == 0) {
+            if (this.velocity.x > 0) this.velocity.x = Math.max(0, this.velocity.x - deltaTime * this.secondDeceleration)
+            if (this.velocity.x < 0) this.velocity.x = Math.min(0, this.velocity.x + deltaTime * this.secondDeceleration)
+        }
+        if (movementVector.y == 0) {
+            if (this.velocity.y > 0) this.velocity.y = Math.max(0, this.velocity.y - deltaTime * this.secondDeceleration)
+            if (this.velocity.y < 0) this.velocity.y = Math.min(0, this.velocity.y + deltaTime * this.secondDeceleration)
+        }
+
+        if (logs) logError(`${this.velocity.x} ${this.velocity.y}`)
 
     }
 
@@ -1038,8 +1076,6 @@ export class Spike extends physicsObject {
         const front = this.getFaceVertecies("front");
         const topMiddle = this.location.add(new vec3(this.size.x/2, this.size.y, 0))
         front[0] = topMiddle; front[1] = topMiddle;
-
-        console.log(front)
 
         const face = new Quad(front, this.brightness)
         face.doCulling = false

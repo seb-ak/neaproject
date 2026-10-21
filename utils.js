@@ -60,6 +60,7 @@ export class vec3 {
 
     normalise() {
         const len = this.length()
+        if (len == 0) return new vec3();
         return this.div(len)
     }
 
