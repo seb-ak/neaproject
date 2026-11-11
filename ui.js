@@ -187,6 +187,13 @@ export class UiController {
                 this.main.saveSettings();
             }
 
+            const performance = new UiButton(settingsScreen, `3d ${this.main.settings.performance ? "off" : "on"}`, 1,6, 6,1);
+            performance.action = () => {
+                this.main.settings.performance = !this.main.settings.performance;
+                performance.text = `3d ${this.main.settings.performance ? "off" : "on"}`;
+            
+                this.main.saveSettings();
+            }
 
 
 

@@ -289,7 +289,8 @@ class physicsObject extends gameObject {
     }
 
     getCollisionObjects(level) {
-        const o = [...level.objectsWithCollision
+        const chunkData = level.getChunksData(this.location, 1)
+        const o = [...chunkData.object
             .filter( obj => (
                 obj !== this && obj.collision &&
                 (obj.type != "platform" ||
@@ -299,9 +300,10 @@ class physicsObject extends gameObject {
                     )
                 )
             )),
-            ...level.getCloseTo(this)
+            ...chunkData.collision
         ]
         if (this.type !== "player") o.push(level.player)
+        // console.log("close:  ",level.getCloseTo(this), "objwithcollison: ",level.objectsWithCollision)
         return o
     }
 
@@ -426,7 +428,7 @@ export class Player extends physicsObject {
         this.invincibleTime = this.maxInvincibleTime
 
         if (this.activeSpawn == undefined) {
-            for (const obj of level.objects) {
+            for (const obj of level.getChunksData().object) {
                 if (obj.type !== "SpawnPoint") continue;
                 this.activeSpawn = { location: obj.location, levelID:level.levelID }
                 break;
@@ -1015,7 +1017,7 @@ export class Portal extends gameObject {
 
     findOtherPortal(level) {
 
-        const portal = level.objects.filter(o => (o.type == "portal" && o.id == this.id) )
+        const portal = level.getChunksData().object.filter(o => (o.type == "portal" && o.id == this.id) )
 
         return portal
 

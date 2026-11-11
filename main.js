@@ -9,10 +9,10 @@ class Level {
         this.z = z;
         this.player = player;
 
-        this.objects = [];
+        // this.objects = [];
         this.gridSize = 0.3;
-        this.gridCollision = [];
-        this.gridObjects = [];
+        // this.gridCollision = [];
+        // this.gridObjects = [];
         this.mainQuad;
         
         this.loaded = false;
@@ -22,6 +22,89 @@ class Level {
         this.tempScaledTextures = new Map();
 
         this.load();
+
+        this.chunks = []
+        this.chunkSize = 10
+    }
+
+    getChunkLoc(location) {
+        if (location.location) location = location.location;
+        const loc = location.div(this.gridSize * this.chunkSize);
+        loc.x = Math.floor(loc.x);
+        loc.y = Math.floor(loc.y);
+        return loc;
+    }
+
+    getChunksData(location=undefined, radius=0) {
+        const chunksData = {
+            collision: [],
+            levelTile: [],
+            object: [],
+        };
+
+        if (location == undefined) { // all of the chunks
+            for (const chunkData of this.chunks.flat(Infinity)) {
+                for (const [key, value] of Object.entries(chunkData)) {
+                    chunksData[key].push(...value);
+                }
+            }
+            return chunksData;
+        }
+
+        const chunkLoc = this.getChunkLoc(location);
+
+        for (let x = -radius; x <= radius; x++) {
+        for (let y = -radius; y <= radius; y++) {
+            
+            if (!this.chunks[chunkLoc.y + y]) continue;
+            if (!this.chunks[chunkLoc.y + y][chunkLoc.x + x]) continue;
+            if (chunkLoc.y + y < 0 || chunkLoc.y + y > this.chunks.length-1) continue;
+            if (chunkLoc.x + x < 0 || chunkLoc.x + x > this.chunks[chunkLoc.y + y].length-1) continue;
+            const chunkData = this.chunks[chunkLoc.y + y][chunkLoc.x + x];
+
+            // for (const {key, value} of Object.entries(chunkData)) { // made an error here /////////
+            for (const [key, value] of Object.entries(chunkData)) {
+                chunksData[key].push(...value);
+            }
+
+        }
+        }
+
+        return chunksData;
+    }
+
+    getChunkCatagory(object) {
+        if (object.type == "collision") return "collision";
+        if (object.type == "levelTile") return "levelTile";
+        return "object";
+    }
+    
+    addToChunk(object) {
+        const chunkLoc = this.getChunkLoc(object.location);
+        object.chunkLoc = chunkLoc;
+        const catagory = this.getChunkCatagory(object);
+        
+        if (!this.chunks[chunkLoc.y]) this.chunks[chunkLoc.y] = [];
+        if (!this.chunks[chunkLoc.y][chunkLoc.x]) this.chunks[chunkLoc.y][chunkLoc.x] = {};
+
+        const chunk = this.chunks[chunkLoc.y][chunkLoc.x];
+        if (!chunk[catagory]) chunk[catagory] = [];
+        chunk[catagory].push(object);
+    }
+    removeFromChunk(object, chunkLoc=undefined) {
+        if (chunkLoc == undefined) chunkLoc = object.chunkLoc;
+        const catagory = this.getChunkCatagory(object);
+    
+        if (!this.chunks[chunkLoc.y]) this.chunks[chunkLoc.y] = [];
+        if (!this.chunks[chunkLoc.y][chunkLoc.x]) this.chunks[chunkLoc.y][chunkLoc.x] = {};
+
+        const chunk = this.chunks[chunkLoc.y][chunkLoc.x];
+        chunk[catagory] = chunk[catagory].filter(o => o != object);
+    }
+
+    moveChunk(object) {
+        this.removeFromChunk(object);
+        this.addToChunk(object);
     }
 
     async load() {
@@ -44,15 +127,15 @@ class Level {
 
         // COLLISION //
         for (let y = 0; y < this.collision.array.length; y++) {
-            this.gridCollision[y] = [];
-            this.gridObjects[y] = [];
+            // this.gridCollision[y] = [];
+            // this.gridObjects[y] = [];
             for (let x = 0; x < this.collision.array[y].length; x++) {
                 const tile = this.collision.array[y][x];
                 const hex = tile.hex.substring(0, 7);
                 const data = tile.a.toString(10).padStart(2, '0')
                 
-                this.gridCollision[y][x] = (hex === "#000000")
-                if (this.gridCollision[y][x]) {
+                // this.gridCollision[y][x] = (hex === "#000000")
+                if (hex === "#000000") {
 
                     const up =    (y + 1 < this.collision.array.length      ) ? this.collision.array[y + 1][x].hex=="#000000ff" : false
                     const down =  (y - 1 >= 0                               ) ? this.collision.array[y - 1][x].hex=="#000000ff" : false
@@ -68,30 +151,44 @@ class Level {
                     const o = new gameObject(new vec3(x*this.gridSize, y*this.gridSize, 0));
                     o.size = new vec3(this.gridSize, this.gridSize, this.gridSize);
                     o.collision = true;
-                    this.gridObjects[y][x] = o;
+                    o.type = "collision";
+                    this.addToChunk(o);
+                    // this.gridObjects[y][x] = o;
+                    // console.log("collision")
                 }
                 
                 if (hex === "#ff0000" && data=="255") {
-                    this.objects.push( new SpawnPoint(new vec3(x*this.gridSize, y*this.gridSize, 0+this.gridSize)) );
+                    const o = new SpawnPoint(new vec3(x*this.gridSize, y*this.gridSize, 0+this.gridSize));
+                    this.addToChunk(o);
+                    // console.log("spawnpoint")
                 }
                 
                 if (hex === "#0000ff") {
-                    this.objects.push( new Enemy(new vec3(x*this.gridSize, y*this.gridSize, 0+this.gridSize), data) );
+                    const o = new Enemy(new vec3(x*this.gridSize, y*this.gridSize, 0+this.gridSize), data);
+                    this.addToChunk(o);
                 }
 
                 if (hex === "#ffff00") {
-                    const id = data[1]
-                    const index = data[2]
-                    if (!platforms[id]) {platforms[id] = {}}
-                    platforms[id][index] = new vec3(x*this.gridSize, y*this.gridSize, 0+this.gridSize)
+                    const location = new vec3(x*this.gridSize, y*this.gridSize, 0+this.gridSize);
+                    if (data == "255") {
+                        const o = new Platform([location]);
+                        this.addToChunk(o);
+                    } else {
+                        const id = data[1];
+                        const index = data[2];
+                        if (!platforms[id]) platforms[id] = {}
+                        platforms[id][index] = location;
+                    }
                 }
 
                 if (hex === "#ff0000" && data=="200") {
-                    this.objects.push( new Spike(new vec3(x*this.gridSize, y*this.gridSize, 0+this.gridSize), this.gridSize) );
+                    const o = new Spike(new vec3(x*this.gridSize, y*this.gridSize, 0+this.gridSize), this.gridSize);
+                    this.addToChunk(o);
                 }
 
                 if (hex === "#ff00ff") {
-                    this.objects.push( new Portal(new vec3(x*this.gridSize, y*this.gridSize, 0+this.gridSize), data, this.levelID) );
+                    const o = new Portal(new vec3(x*this.gridSize, y*this.gridSize, 0+this.gridSize), data, this.levelID);
+                    this.addToChunk(o);
                 }
             }
         }
@@ -104,32 +201,35 @@ class Level {
                 });
                 const positions = entries.map(p => p[1])
                 
-                this.objects.push( new Platform(positions) );
+                const o = new Platform(positions);
+                this.addToChunk(o);
             }
 
         //
 
 
         // TEXTURE //
-        for (let y = 0; y < this.texture.array.length; y++) {
-            for (let x = 0; x < this.texture.array[y].length; x++) {
-
-                if (this.texture.array[y][x].a === 0) continue;
-
-                const up =    (y + 1 < this.texture.array.length   ) ? this.texture.array[y + 1][x].a!=0 : false
-                const down =  (y - 1 >= 0                          ) ? this.texture.array[y - 1][x].a!=0 : false
-                const left =  (x - 1 >= 0                          ) ? this.texture.array[y][x - 1].a!=0 : false
-                const right = (x + 1 < this.texture.array[y].length) ? this.texture.array[y][x + 1].a!=0 : false
-                
-                if (up && down && left && right) continue;
-
-                const location = new vec3(x*this.gridSize, y*this.gridSize, this.z)
-                const adjacent = { up:up, down:down, left:left, right:right, front: false }
-                const size = new vec3(this.gridSize, this.gridSize, this.gridSize*4)
-                const brightness = this.texture.array[y][x].r / 255
-
-                this.objects.push(new levelTile(location, adjacent, size, brightness));
-            
+        if (this.levelID != "second") {
+            for (let y = 0; y < this.texture.array.length; y++) {
+                for (let x = 0; x < this.texture.array[y].length; x++) {
+    
+                    if (this.texture.array[y][x].a === 0) continue;
+    
+                    const up =    (y + 1 < this.texture.array.length   ) ? this.texture.array[y + 1][x].a!=0 : false
+                    const down =  (y - 1 >= 0                          ) ? this.texture.array[y - 1][x].a!=0 : false
+                    const left =  (x - 1 >= 0                          ) ? this.texture.array[y][x - 1].a!=0 : false
+                    const right = (x + 1 < this.texture.array[y].length) ? this.texture.array[y][x + 1].a!=0 : false
+                    
+                    if (up && down && left && right) continue;
+    
+                    const location = new vec3(x*this.gridSize, y*this.gridSize, this.z)
+                    const adjacent = { up:up, down:down, left:left, right:right, front: false }
+                    const size = new vec3(this.gridSize, this.gridSize, this.gridSize*4)
+                    const brightness = this.texture.array[y][x].r / 255
+    
+                    const o = new levelTile(location, adjacent, size, brightness);
+                    this.addToChunk(o);
+                }
             }
         }
 
@@ -142,31 +242,41 @@ class Level {
 
         this.mainQuad = new levelTile(new vec3(0, 0, 0), adjacent, new vec3(width, height, 0), 1);
         this.mainQuad.faces.push(
-            new Quad(this.mainQuad.getFaceVertecies("front"),
-                this.texture.image)
+            new Quad(this.mainQuad.getFaceVertecies("front"), this.texture.image)
         );
         
         this.mainQuad.faces[0].doCulling = false;
         this.mainQuad.faces[0].isMainQuad = true;
         this.mainQuad.isMainQuad = true;
 
-        this.objects.push(this.mainQuad);
+        // this.objects.push(this.mainQuad);
+        //             this.addToChunk(o);
 
+        // this.objectsWithCollision = this.objects.filter(obj => obj.collision)
 
-        this.objectsWithCollision = this.objects.filter(obj => obj.collision)
+        // console.log("chunks:", this.chunks)
 
     }
     
     tick(deltaTime) {
         if (!this.loaded) return;
 
-        for (const obj of this.objects) {
+        const tickRadius = 7
+        const chunksData = this.getChunksData(this.player.location, tickRadius);
+
+        for (const obj of chunksData.object) {
             if (!obj.ticking) continue;
+
             obj.tick(deltaTime, this);
+
+            const oldChunkLoc = this.getChunkLoc(obj.location);
+            if (oldChunkLoc.x !== obj.chunkLoc.x || oldChunkLoc.y !== obj.chunkLoc.y) {
+                this.moveChunk(obj);
+            }
         }
     }
 
-    draw(ctx, camera, screen, player, colour, cameraIsMoving) {
+    draw(ctx, camera, screen, player, colour, cameraIsMoving, performance=false) {
 
         const w=screen.width
         const h=screen.height
@@ -182,8 +292,13 @@ class Level {
             order: [],
         }
         
-        const objects = [...this.objects]
-        if (player) objects.push(player)
+        const radius = this.levelID == "second"? 5 : 2;
+        const chunksData = this.getChunksData(camera.location, radius);
+        const objects = [this.mainQuad];
+
+        if (chunksData.object) objects.push(...chunksData.object);
+        if (!performance && chunksData.levelTile) objects.push(...chunksData.levelTile);
+        if (player) objects.push(player);
 
         for (const obj of objects) {
             for (const face of obj.faces) {
@@ -294,6 +409,11 @@ class Level {
                 // console.log(key)
             }
 
+            ctx.filter = `brightness(${adjustedBrightness})`;
+            ctx.drawImage(texture, x, y, width, height);
+            ctx.filter = `none`;
+            return
+
             const temp = this.tempScaledTextures.get(key);
 
             // logError(`quad dist: ${distance}`)
@@ -391,30 +511,45 @@ class Level {
 		// }
 	}
 
-    getCloseTo(obj) {
-        // const distance = obj.size.mult(2)
-        const distance = new vec3(0.5, 0.5, 0.5)
-        const close = []
-        const min = obj.getPoint().bl.sub(distance).div(this.gridSize)
-        const max = obj.getPoint().tr.add(distance).div(this.gridSize)
+    // getCloseTo(obj) {
+    //     // const distance = obj.size.mult(2)
+    //     const distance = new vec3(0.5, 0.5, 0.5)
+    //     const close = []
+    //     const min = obj.getPoint().bl.sub(distance).div(this.gridSize)
+    //     const max = obj.getPoint().tr.add(distance).div(this.gridSize)
 
-        min.x = Math.min(this.gridObjects[0].length-1, Math.max(0, Math.floor(min.x)))
-        max.x = Math.min(this.gridObjects[0].length-1, Math.max(0, Math.floor(max.x)))
-        
-        min.y = Math.min(this.gridObjects.length-1, Math.max(0, Math.floor(min.y)))
-        max.y = Math.min(this.gridObjects.length-1, Math.max(0, Math.floor(max.y)))
-        
-        for (let y=min.y; y<max.y; y++) {
-            for (let x=min.x; x<max.x; x++) {
-                const o = this.gridObjects[y][x];
-                if (!o) continue;
-                if (!o.collision) continue;
-                close.push(o);
-            }
-        }
+    //     const width = this.texture.image.width
+    //     const height = this.texture.image.height
 
-        return close;
-    }
+    //     min.x = Math.min(width-1, Math.max(0, Math.floor(min.x)))
+    //     max.x = Math.min(width-1, Math.max(0, Math.floor(max.x)))
+        
+    //     min.y = Math.min(height-1, Math.max(0, Math.floor(min.y)))
+    //     max.y = Math.min(height-1, Math.max(0, Math.floor(max.y)))
+    
+    //     for (let y=min.y; y<max.y; y++) {
+    //         for (let x=min.x; x<max.x; x++) {
+    //             const o = this.gridObjects[y][x];
+    //             if (!o) continue;
+    //             if (!o.collision) continue;
+    //             close.push(o);
+    //         }
+    //     }
+    
+    //     // console.log(
+    //     //     this.gridObjects.length,
+    //     //     this.gridObjects[0].length,
+    //     //     this.gridObjects[50].length,
+    //     // )
+    //     // console.log({
+    //     //     distance,
+    //     //     close,
+    //     //     min,
+    //     //     max,
+    //     // })
+        
+    //     return close;
+    // }
 
 }
 
@@ -425,17 +560,18 @@ class Main {
         this.settings = {
             dithering: true,
             colourScheme: 0,
+            performance: false,
             colours: [
-                {dark: {r:5, g:28, b:12}, light: {r:51, g:255, b:102}}, // #051c0c (Dark Forest Green) and #33ff66 (Terminal Green)
-                {dark: {r:43, g:27, b:61}, light: {r:246, g:240, b:207}}, // #2b1b3d (Plum Purple) and #f6f0cf (Butter Yellow)
+                { dark: {r:5, g:28, b:12}, light: {r:51, g:255, b:102}}, // #051c0c (Dark Forest Green) and #33ff66 (Terminal Green)
+                { dark: {r:43, g:27, b:61}, light: {r:246, g:240, b:207}}, // #2b1b3d (Plum Purple) and #f6f0cf (Butter Yellow)
                 {dark: {r:18, g:12, b:0}, light: {r:255, g:176, b:0}}, // #120c00 (Deep Brown-Black) and #ffb000 (Classic Amber)
                 {dark: {r:15, g:26, b:44}, light: {r:238, g:242, b:247}}, // #0f1a2c (Dark Navy) and #eef2f7 (Ice White)
                 {dark: {r:36, g:89, b:92}, light: {r:240, g:125, b:234}},
                 {dark: {r:74, g:68, b:94}, light: {r:180, g:76, b:67}},
-                {dark: {r:0, g:0, b:0}, light: {r:255, g:255, b:255}},
+                { dark: {r:0, g:0, b:0}, light: {r:255, g:255, b:255}},
                 {dark: {r:Math.random()*255, g:Math.random()*255, b:Math.random()*255}, light: {r:Math.random()*255, g:Math.random()*255, b:Math.random()*255}},
                 {dark: {r:99, g:222, b:165}, light: {r:222, g: 103, b:99}},
-                {dark: {r:42, g:12, b:64}, light: {r:118, g: 146, b:249}},
+                { dark: {r:42, g:12, b:64}, light: {r:118, g: 146, b:249}},
             ],
         }
         this.loadSettings();
@@ -467,8 +603,8 @@ class Main {
         
         this.player = new Player(new vec3(0,0,0))
         this.level = {
-            main: new Level("main", "test1", 0, this.player),
-            second: new Level("second","test1", -15, this.player),
+            main: new Level("main", "main", 0, this.player),
+            second: new Level("second","main", -15, this.player),
         };
 
         // this.levelLayer = "main"
@@ -529,12 +665,13 @@ class Main {
             }
         }
 
-        if (this.deltaTime > 1/30 || this.deltaTime < 1/1000) {
-            console.log(this.deltaTime);
+        this.deltaTime = Math.max(1/144, Math.min(1/30, this.deltaTime))
+        // if (this.deltaTime > 1/30 || this.deltaTime < 1/1000) {
+        //     console.log(this.deltaTime);
 
-            requestAnimationFrame(this.update.bind(this));
-            return;
-        }
+        //     requestAnimationFrame(this.update.bind(this));
+        //     return;
+        // }
 
         if (this.player.initialSpawn) {
             this.player.spawn(this.level[this.player.levelID]);
@@ -630,9 +767,13 @@ class Main {
             if (!this.level[levelID].loaded) continue
 
             this.level[levelID].draw(
-                this.ctx, this.camera, this.screen,
+                this.ctx,
+                this.camera,
+                this.screen,
                 this.player.levelID==levelID? this.player : undefined,
-                colour.light, this.camera.isMoving
+                colour.light,
+                this.camera.isMoving,
+                this.settings.performance
             );
         
         }
