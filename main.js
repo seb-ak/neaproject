@@ -227,7 +227,7 @@ class Level {
                     const size = new vec3(this.gridSize, this.gridSize, this.gridSize*4)
                     const brightness = this.texture.array[y][x].r / 255
     
-                    const o = new levelTile(location, adjacent, size, brightness);
+                    const o = new levelTile(location, adjacent, size, brightness - 0.1);
                     this.addToChunk(o);
                 }
             }
@@ -850,4 +850,5 @@ class Main {
 
 }
 
-new Main();
+let started = false;
+document.addEventListener("mousedown", (e) => { if (started) return; new Main(); started = true; });

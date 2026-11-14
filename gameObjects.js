@@ -245,8 +245,8 @@ class physicsObject extends gameObject {
 
         const velocity = this.velocity.add(this.platformVelocity);
         const steps = Math.ceil(Math.max(
-            Math.abs(velocity.x * deltaTime) / this.size.x,
-            Math.abs(velocity.y * deltaTime) / this.size.y
+            Math.abs(velocity.x * deltaTime) / level.gridSize,
+            Math.abs(velocity.y * deltaTime) / level.gridSize
         ))
         
         logError(`${this.type} collisions: ${this.collisionObjects.length}`)
@@ -332,12 +332,12 @@ export class Player extends physicsObject {
         this.location.z += this.size.z/2
 
         this.pressedInputs = {
-            up:    {keys:["w",],active:false},
+            up:    {keys:["w","arrowup"],active:false},
             down:  {keys:["s","arrowdown"],active:false},
             left:  {keys:["a","arrowleft"],active:false},
             right: {keys:["d","arrowright"],active:false},
-            jump:  {keys:[" ","arrowup"],active:false},
-            dash:  {keys:["shift",],active:false},
+            jump:  {keys:[" ","control","0","insert"],active:false},
+            // dash:  {keys:["shift",],active:false},
             select:{keys:["e","enter"],active:false},
         }
         document.addEventListener("keydown", (event) => {
@@ -373,7 +373,7 @@ export class Player extends physicsObject {
 
         this.acceleration = new vec3(0.25, 0, 0)
         this.deceleration = new vec3(0.14, 0, 0)
-        this.maxVel = new vec3(6, Infinity, Infinity)
+        this.maxVel = new vec3(6, 20, Infinity)
 
         this.justJumped = false;
         this.lastOnFloor = false;
@@ -407,6 +407,10 @@ export class Player extends physicsObject {
         this.secondStartBoostDeadzone = 1.5
         this.secondMaxVelocity = new vec3(5, 5, 0)
 
+        this.hasDoubleJump = true;
+        this.doubleJumpForce = 17;
+
+        this.startSlideSpeed = this.maxVel.x - 0.4
     }
     
     spawn(level) {
@@ -562,47 +566,86 @@ export class Player extends physicsObject {
         // start jump
         const canJump = this.cyoteTime > 0 && !this.justJumped
         if (canJump && this.pressedInputs.jump.active) {
-            this.jumpTime += deltaTime * 1000
-            this.velocity.y = this.jumpForce
+
             this.cyoteTime = 0
             this.justJumped = true
+        
+            if (this.isSliding) { // sliding jump logic
+
+                const direction = Math.sign(this.velocity.x);
+                const magnitude = this.velocity.length() * 4;
+                
+                this.velocity = new vec3(
+                    direction * magnitude * 0.1,
+                    magnitude * 0.9,
+                    0
+                ); // most of velocity directed upwards
+
+            } else { // normal jump logic
+                
+                this.jumpTime += deltaTime * 1000
+                this.velocity.y = this.jumpForce
+    
+                if (this.isCrouching) {
+                    this.jumpTime = 0;
+                }
+
+            }
         }
         
         if (!this.pressedInputs.jump.active) {
             this.justJumped = false
         }
 
-        /////////////////
-        // Dash logic //
-        ///////////////
+        //////////////////
+        // Double jump //
+        ////////////////
 
-        const vec = this.facingVector
-        if (vec.x != 0) {
-            vec.y = 0
-            this.dashFacingVector = vec.normalise()
-        }
+        let vec = new vec3(this.xInput, this.yInput)
+        if (vec.x == 0 && vec.y == 0) vec = new vec3(0, 1);
+        else if (Math.abs(vec.x) > Math.abs(vec.y)) vec.y = 0;
+        else if (Math.abs(vec.y) > Math.abs(vec.x)) vec.x = 0;
 
+        this.dashFacingVector = vec.normalise();
+
+        // dash
         if (this.isDashing) this.dashTime += deltaTime * 1000
         if (this.dashTime > this.maxDashTime || this.velocity.x == 0) {
             this.isDashing = false;
             this.dashTime = 0;
         }
 
-        if (this.pressedInputs.dash.active) {
+        // start double jump
+        const canDoubleJump = !this.justJumped && this.hasDoubleJump 
+        if (canDoubleJump && this.pressedInputs.jump.active) {
+            this.hasDoubleJump = false;
 
             if (this.canDash && !this.isCrouching) {
                 this.canDash = false;
-                this.isDashing = true;
                 this.jumpTime = 0;
-                
-                const dashVector = this.dashFacingVector.mult(this.dashForce)
 
-                this.velocity.x = dashVector.x
-                this.velocity.y = dashVector.y
+                if (this.dashFacingVector.y == 0) { // sideways
+
+                    this.isDashing = true;
+                    const dashVector = this.dashFacingVector.mult(this.dashForce);
+                    this.velocity = dashVector;
+
+                } else if (this.dashFacingVector.y > 0) { // up
+
+                    const direction = Math.sign(this.velocity.x)
+                    this.velocity.y = this.doubleJumpForce;
+                    this.velocity.x += direction * this.doubleJumpForce * 0.1;
+
+                } else { // down
+
+                    this.velocity.y = -this.velocity.length() - this.doubleJumpForce;
+                    this.velocity.x = 0;
+                    this.justJumped = true;
+                }
             }
-
         } else if (this.isOnFloor) {
             this.canDash = true;
+            this.hasDoubleJump = true;
         }
 
         if (logs) logError(`dashing: ${this.isDashing}`)
@@ -669,26 +712,28 @@ export class Player extends physicsObject {
     tryCrouch() {
         
         // crouch and sliding
-        if (this.yInput < 0 && this.size.y != this.crouchHeight) {
+        if (this.isOnFloor && this.yInput < 0 && this.size.y != this.crouchHeight) { // try crouch
             this.size.y = this.crouchHeight;
             
             const colliding = this.checkCollisions(this.collisionObjects);
-            if (colliding) {
+            if (colliding) { // cant crouch
                 this.size.y = this.baseHeight;
-            } else {
+            } else {// start crouch
                 this.isCrouching = true;
-                if (Math.abs(this.velocity.x) > this.maxVel.x && this.xInput != 0) {
-                    this.velocity.x *= 1.2
+                const speed = this.velocity.length()
+                if (speed >= this.startSlideSpeed && this.xInput != 0) {
+                    const direction = Math.sign(this.velocity.x)
+                    this.velocity.x = direction * speed * 1.4
                     this.isSliding = true
                 }
             }
-        } else if (this.yInput >= 0 && this.size.y != this.baseHeight) {
+        } else if ( this.jumpTime==0 && this.yInput >= 0 && this.size.y != this.baseHeight ) { // try uncrouch
             this.size.y = this.baseHeight;
             
             const colliding = this.checkCollisions(this.collisionObjects);
-            if (colliding) {
+            if (colliding) { // cant uncrouch
                 this.size.y = this.crouchHeight;
-            } else {
+            } else { // stop crouching
                 this.isCrouching = false;
                 this.isSliding = false;
             }
