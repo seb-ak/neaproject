@@ -15,7 +15,7 @@ export class gameObject {
         return {
             center: center,
             tl: this.location.add(new vec3(0,           this.size.y, 0)),
-            bl: this.location,
+            bl: this.location.copy(),
             tr: this.location.add(new vec3(this.size.x, this.size.y, 0)),
             br: this.location.add(new vec3(this.size.x, 0,           0))
         }
@@ -122,12 +122,43 @@ export class levelTile extends gameObject {
 }
 
 export class SpawnPoint extends gameObject {
-    constructor(location) {
-        // location = location.add(new vec3(-9,10,0)) // moved to spawn next to spikes
+    constructor(location, active = false) {
         super(location);
-        this.type = "SpawnPoint"
+        this.size = new vec3(1, 1.5, 0);
+
+        this.ticking = true;
         this.collision = false;
-        this.active = true;
+        
+        this.type = "SpawnPoint"
+        this.active = active;
+
+        this.brightness = 0.8
+
+        this.faces = [
+            new Quad(this.getFaceVertecies("front"), this.brightness)
+        ];
+
+        this.loaded = false;
+        
+        this.load();
+    }
+
+    async load() {
+        this.textures = [
+            await loadImage(`./textures/spawnPoint/active.png`),
+            await loadImage(`./textures/spawnPoint/inactive.png`),
+        ]
+        this.loaded = true
+        this.faces[0].brightness = this.textures[0].image
+    }
+
+    tick() {
+        if (!this.loaded) return;
+        if (this.active) {
+            this.faces[0].brightness = this.textures[0].image
+        } else {
+            this.faces[0].brightness = this.textures[1].image
+        }
     }
 }
 
@@ -394,7 +425,7 @@ export class Player extends physicsObject {
 
         this.activeSpawn = undefined;
 
-        this.maxHealth = 2;
+        this.maxHealth = 1;
 
         this.teleportTransition = 0;
         this.teleportTransitionSpeed = 1;
@@ -411,6 +442,38 @@ export class Player extends physicsObject {
         this.doubleJumpForce = 17;
 
         this.startSlideSpeed = this.maxVel.x - 0.4
+
+        this.unlocks = {
+            doubleJump: false,
+            dash: false,
+            slide: false,
+            
+            slideAttack: false,
+            slamAttack: false,
+            
+            hat: false,
+
+            key1: false,
+            key2: false,
+            key3: false,
+            key4: false,
+        }
+
+        this.unlocks = {
+            doubleJump: true,
+            dash: true,
+            slide: true,
+            
+            slideAttack: false,
+            slamAttack: false,
+            
+            hat: false,
+
+            key1: false,
+            key2: false,
+            key3: false,
+            key4: false,
+        }
     }
     
     spawn(level) {
@@ -429,12 +492,13 @@ export class Player extends physicsObject {
         this.isDashing = false;
         this.dashTime = 0;
 
-        this.invincibleTime = this.maxInvincibleTime
+        this.invincibleTime = this.maxInvincibleTime;
 
         if (this.activeSpawn == undefined) {
             for (const obj of level.getChunksData().object) {
                 if (obj.type !== "SpawnPoint") continue;
-                this.activeSpawn = { location: obj.location, levelID:level.levelID }
+                if (!obj.active) continue;
+                this.activeSpawn = { location: obj.location, levelID: level.levelID, object: obj };
                 break;
             }
             return;
@@ -447,7 +511,7 @@ export class Player extends physicsObject {
         this.updateFaces();
     }
 
-    doInputs(deltaTime, logs) {
+    doInputs(deltaTime, logs = false) {
         this.xInput = this.pressedInputs.right.active - this.pressedInputs.left.active
         this.yInput = this.pressedInputs.up.active - this.pressedInputs.down.active
         const deadzone = 0.2
@@ -487,7 +551,7 @@ export class Player extends physicsObject {
 
     }
 
-    mainLevelInputs(deltaTime, logs = true) {
+    mainLevelInputs(deltaTime, logs = false) {
 
         this.bounce = 0
 
@@ -573,11 +637,11 @@ export class Player extends physicsObject {
             if (this.isSliding) { // sliding jump logic
 
                 const direction = Math.sign(this.velocity.x);
-                const magnitude = this.velocity.length() * 4;
+                const magnitude = this.jumpForce + this.velocity.length() * 2;
                 
                 this.velocity = new vec3(
-                    direction * magnitude * 0.1,
-                    magnitude * 0.9,
+                    direction * magnitude * 0.4,
+                    magnitude * 0.6,
                     0
                 ); // most of velocity directed upwards
 
@@ -626,15 +690,19 @@ export class Player extends physicsObject {
 
                 if (this.dashFacingVector.y == 0) { // sideways
 
-                    this.isDashing = true;
-                    const dashVector = this.dashFacingVector.mult(this.dashForce);
-                    this.velocity = dashVector;
+                    if (this.unlocks.dash) {
+                        this.isDashing = true;
+                        const dashVector = this.dashFacingVector.mult(this.dashForce);
+                        this.velocity = dashVector;
+                    }
 
                 } else if (this.dashFacingVector.y > 0) { // up
 
-                    const direction = Math.sign(this.velocity.x)
-                    this.velocity.y = this.doubleJumpForce;
-                    this.velocity.x += direction * this.doubleJumpForce * 0.1;
+                    if (this.unlocks.doubleJump) {
+                        const direction = Math.sign(this.velocity.x)
+                        this.velocity.y = this.doubleJumpForce;
+                        this.velocity.x += direction * this.doubleJumpForce * 0.1;
+                    }
 
                 } else { // down
 
@@ -680,7 +748,7 @@ export class Player extends physicsObject {
 
     }
 
-    secondLevelInputs(deltaTime, logs = true) {
+    secondLevelInputs(deltaTime, logs = false) {
 
         this.bounce = 0.8
 
@@ -721,7 +789,7 @@ export class Player extends physicsObject {
             } else {// start crouch
                 this.isCrouching = true;
                 const speed = this.velocity.length()
-                if (speed >= this.startSlideSpeed && this.xInput != 0) {
+                if (this.unlocks.slide && speed >= this.startSlideSpeed && this.xInput != 0) {
                     const direction = Math.sign(this.velocity.x)
                     this.velocity.x = direction * speed * 1.4
                     this.isSliding = true
@@ -774,6 +842,11 @@ export class Player extends physicsObject {
 
     }
 
+    unlock(item) {
+        this.unlocks[item] = true;
+        console.log(`unlocked ${item}`);
+    }
+
     tick(deltaTime, level) {
         const logs = true;
         
@@ -781,7 +854,7 @@ export class Player extends physicsObject {
         if (this.initialSpawn) {this.spawn(level); this.initialSpawn = false;}
 
         // death
-            if (this.health == 0 && this.deathTimer == -1) this.deathTimer = 2000;
+            if (this.health <= 0 && this.deathTimer == -1) this.deathTimer = 2000;
             if (this.deathTimer != -1) this.deathTimer -= deltaTime * 1000;
             if (this.deathTimer != -1 && this.deathTimer <= 0) this.spawn(level);
 
@@ -804,6 +877,22 @@ export class Player extends physicsObject {
                 if (attack && attack.contactDamage > 0) this.damage(attack.contactDamage)
             }
             if (this.location.y < -10) this.damage(1)
+
+        // SpawnPoints
+            const objects = level.getChunksData(this.location, 1)
+                .object.filter(o => o.type == "SpawnPoint");
+            
+            for (const obj of objects) {
+                if (obj.active) continue;
+                if (!this.isCollidingWith(obj)) continue;
+
+                this.activeSpawn.object.active = false;
+                obj.active = true;
+                
+                this.activeSpawn = { location: obj.location, levelID: level.levelID, object: obj };
+                console.log("new spawnpoint unlocked")
+            }
+
 
         // debug
             if (logs) logError(`justJumped:${this.justJumped} on floor:${this.isOnFloor} jump time:${this.jumpTime.toFixed(3)}`)
@@ -937,6 +1026,117 @@ export class Enemy extends physicsObject {
 
 }
 
+export class BossChase extends physicsObject {
+    constructor(positions) {
+        const size = new vec3(9,9,5)
+
+        positions = positions.map(p => new 
+            vec3(p.x-size.x/2, p.y-size.y/2, p.z-2)
+        )
+        positions.push(new vec3(0, 0, -200))
+
+        super(positions[0].copy());
+        
+        this.positions = positions;
+        this.speed = 1;
+        this.targetPositionIndex = 1;
+        this.lastDiff = undefined
+        this.ticking = true;
+
+        this.type = "bossChase";
+
+        this.size = size;
+
+        this.collision = true;
+        this.baseGravity = 0;
+
+        this.speed = 0;
+        this.changeSpeedTime = 0;
+
+        this.brightness = 0.7;
+        this.faces.push(new Quad(this.getFaceVertecies("front"), this.brightness))
+
+        this.faces.push(new Quad(this.getFaceVertecies("left"), this.brightness))
+        this.faces.push(new Quad(this.getFaceVertecies("right"), this.brightness))
+        this.faces.push(new Quad(this.getFaceVertecies("up"), this.brightness))
+        this.faces.push(new Quad(this.getFaceVertecies("down"), this.brightness))
+
+        for (const f of this.faces) {
+            f.doCulling = false;
+        }
+
+        this.updateFaces();
+
+        this.attackType = {
+            contactDamage: 99,
+        }
+
+        this.ignoreChunks = true;
+
+        this.moving = false;
+    }
+
+    tick(deltaTime, level, logs=false) {
+        if (!level.loaded) return;
+        
+        if (level.player.deathTimer != -1) {
+            this.targetPositionIndex = 1;
+            this.location = this.positions[0].copy();
+            this.speed = 0;
+            this.moving = false;
+            this.changeSpeedTime = 0;
+        }
+
+        const distance = level.player.location.sub(this.location).length()
+        
+        if (logs) logError(`${this.location.x.toFixed(2)} ${this.location.y.toFixed(2)} ${this.location.z.toFixed(2)},  ${this.speed}`)
+
+        if (this.changeSpeedTime <= 0) {
+            if (!this.moving && distance < 40 && level.player.isOnFloor) {
+                this.moving = true;
+                this.changeSpeedTime = 0.4;
+                this.speed = 0;
+            }
+            else if (this.moving && this.speed == 0) this.speed = 4;
+            else if (this.moving && distance < 15) this.speed = 6;
+            else if (this.moving && distance < 20) this.speed = 7;
+            else if (this.moving && this.speed != 0) this.speed = 15;
+            
+            if (this.speed != 0) this.changeSpeedTime = 1 + Math.random();
+        }
+        if (this.moving) this.changeSpeedTime -= deltaTime;
+
+
+        if (this.targetPositionIndex < this.positions.length) {
+            const target = this.positions[this.targetPositionIndex]
+    
+            const diff = target.sub(this.location); diff.z = 0
+    
+            this.velocity = diff.normalise().mult(this.speed)
+    
+            if (this.velocity.length()*deltaTime >= diff.length()) {
+                this.location.x = target.x
+                this.location.y = target.y
+                this.targetPositionIndex = this.targetPositionIndex + 1
+            } else {
+                this.location.x += this.velocity.x * deltaTime
+                this.location.y += this.velocity.y * deltaTime
+            }
+        }
+
+
+        this.updateFaces();
+    }
+
+    updateFaces() {
+        this.faces[0].vertices3d = this.getFaceVertecies("front");
+        this.faces[1].vertices3d = this.getFaceVertecies("left");
+        this.faces[2].vertices3d = this.getFaceVertecies("right");
+        this.faces[3].vertices3d = this.getFaceVertecies("up");
+        this.faces[4].vertices3d = this.getFaceVertecies("down");
+    }
+}
+
 export class Platform extends physicsObject {
 
     constructor(positions) {
@@ -1012,6 +1212,102 @@ export class Platform extends physicsObject {
     }
 
 
+
+}
+
+
+export class Interactable extends gameObject {
+
+    constructor(location, data, levelID) {
+        location.z -= 0.5
+        super(location)
+
+        this.id = data
+
+        this.levelID = levelID
+
+        this.type = "interactable"
+        this.ticking = true
+
+        this.brightness = 0.8;
+        this.faces.push(new Quad(this.getFaceVertecies("front"), this.brightness))
+        
+        this.load();
+
+        this.interactDistance = 1;
+
+        this.collected = false;
+    }
+
+    async load() {
+        // this.faces[0].brightness = await loadImage(`./textures/interactable/${this.id}.png`).image;
+        this.loaded = true
+    }
+
+    tick(deltaTime, level) {
+        this.level = level
+
+        if (this.collected) return;
+
+        const player = this.level.player;
+        
+        const distance = player.location.sub(this.location).length();
+
+        if (player.levelID != this.levelID) return;
+        if (distance > this.interactDistance) return;
+
+        const selectHoldTime = player.selectHoldTime;
+
+        if ( selectHoldTime > 0 && selectHoldTime < 1 ) {
+
+            this.interact(player);
+            
+            player.selectHoldTime = -1;
+            this.collected = true;
+
+            this.faces[0].brightness = 0.5
+
+        }
+
+    }
+
+    interact(player) {
+        if (this.id == "100") player.unlock("doubleJump")
+        else if (this.id == "101") player.unlock("dash")
+        else if (this.id == "102") player.unlock("slide")
+
+        else if (this.id == "103") player.unlock("slideAttack")
+        else if (this.id == "104") player.unlock("slamAttack")
+
+        else if (this.id == "105") player.unlock("hat")
+
+        else if (this.id == "110") player.unlock("key1")
+        else if (this.id == "111") player.unlock("key2")
+        else if (this.id == "112") player.unlock("key3")
+        else if (this.id == "113") player.unlock("key4")
+
+        else if (this.id == "120") this.openDoor(player);
+    }
+
+    openDoor(player) {
+        
+        const keys = [].filter(o => o).length
+        if (
+            !player.unlocks.key1 ||
+            !player.unlocks.key2 ||
+            !player.unlocks.key3 ||
+            !player.unlocks.key4
+        ) {
+            console.log(`need ${4-keys} more keys to unlock`)
+            return;
+        }
+
+        const objects = this.level.getChunksData().object;
+        const door = objects.filter(o => o.type == "door")[0];
+
+        door.location.z -= door.size.z;
+        door.collision = false;
+    }
 
 }
 
@@ -1116,7 +1412,7 @@ export class Spike extends physicsObject {
 
         this.collision = true;
         this.gravity = 0;
-        this.ticking = true;
+        this.ticking = false;
 
         this.brightness = 0.7;
 
@@ -1132,9 +1428,25 @@ export class Spike extends physicsObject {
             contactDamage: 1,
         }
 
+        this.size = new vec3(gridSize*0.5, gridSize*1.5, gridSize)
+        this.location.x += gridSize*0.25
     }
 
-    tick(deltaTime, level) {
+}
+
+export class DeathBarrier extends physicsObject {
+
+    constructor(location, gridSize) {
+        super(location);
+        this.size = new vec3(gridSize, gridSize, gridSize);
+
+        this.collision = true;
+        this.gravity = 0;
+        this.ticking = false;
+
+        this.attackType = {
+            contactDamage: 99,
+        }
 
     }
 

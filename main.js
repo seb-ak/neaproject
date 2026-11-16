@@ -1,5 +1,5 @@
 import { logError, clearLog, vec3, loadImage, Quad } from "./utils.js";
-import { gameObject, levelTile, SpawnPoint, Player, Enemy, Platform, Portal, Spike } from "./gameObjects.js";
+import { gameObject, levelTile, SpawnPoint, Player, Enemy, Platform, Portal, Spike, BossChase, Interactable, DeathBarrier } from "./gameObjects.js";
 import { UiController } from "./ui.js"
 
 class Level {
@@ -9,10 +9,7 @@ class Level {
         this.z = z;
         this.player = player;
 
-        // this.objects = [];
         this.gridSize = 0.3;
-        // this.gridCollision = [];
-        // this.gridObjects = [];
         this.mainQuad;
         
         this.loaded = false;
@@ -25,6 +22,7 @@ class Level {
 
         this.chunks = []
         this.chunkSize = 10
+        this.alwaysLoaded = [];
     }
 
     getChunkLoc(location) {
@@ -39,7 +37,7 @@ class Level {
         const chunksData = {
             collision: [],
             levelTile: [],
-            object: [],
+            object: [...this.alwaysLoaded],
         };
 
         if (location == undefined) { // all of the chunks
@@ -124,91 +122,123 @@ class Level {
     generateLevel() {
 
         const platforms = {}
-
+        const bossPath = {}
         // COLLISION //
         for (let y = 0; y < this.collision.array.length; y++) {
-            // this.gridCollision[y] = [];
-            // this.gridObjects[y] = [];
-            for (let x = 0; x < this.collision.array[y].length; x++) {
-                const tile = this.collision.array[y][x];
-                const hex = tile.hex.substring(0, 7);
-                const data = tile.a.toString(10).padStart(2, '0')
+        for (let x = 0; x < this.collision.array[y].length; x++) {
+            const tile = this.collision.array[y][x];
+            const hex = tile.hex.substring(0, 7);
+            const data = tile.a.toString(10).padStart(2, '0')
+            
+            if (hex === "#000000") {
+
+                const up =    (y + 1 < this.collision.array.length      ) ? this.collision.array[y + 1][x].hex=="#000000ff" : false
+                const down =  (y - 1 >= 0                               ) ? this.collision.array[y - 1][x].hex=="#000000ff" : false
+                const left =  (x - 1 >= 0                               ) ? this.collision.array[y][x - 1].hex=="#000000ff" : false
+                const right = (x + 1 < this.collision.array[y].length   ) ? this.collision.array[y][x + 1].hex=="#000000ff" : false
                 
-                // this.gridCollision[y][x] = (hex === "#000000")
-                if (hex === "#000000") {
+                if (up && down && left && right) continue; // skip if fully enclosed
 
-                    const up =    (y + 1 < this.collision.array.length      ) ? this.collision.array[y + 1][x].hex=="#000000ff" : false
-                    const down =  (y - 1 >= 0                               ) ? this.collision.array[y - 1][x].hex=="#000000ff" : false
-                    const left =  (x - 1 >= 0                               ) ? this.collision.array[y][x - 1].hex=="#000000ff" : false
-                    const right = (x + 1 < this.collision.array[y].length   ) ? this.collision.array[y][x + 1].hex=="#000000ff" : false
-                    
-                    if (up && down && left && right) {
-                        // console.log("skipped collision");
-                        // skip if fully enclosed
-                        continue;
-                    }
+                const o = new gameObject(new vec3(x*this.gridSize, y*this.gridSize, 0));
+                o.size = new vec3(this.gridSize, this.gridSize, this.gridSize);
+                o.collision = true;
+                o.type = "collision";
 
-                    const o = new gameObject(new vec3(x*this.gridSize, y*this.gridSize, 0));
-                    o.size = new vec3(this.gridSize, this.gridSize, this.gridSize);
-                    o.collision = true;
-                    o.type = "collision";
-                    this.addToChunk(o);
-                    // this.gridObjects[y][x] = o;
-                    // console.log("collision")
-                }
-                
-                if (hex === "#ff0000" && data=="255") {
-                    const o = new SpawnPoint(new vec3(x*this.gridSize, y*this.gridSize, 0+this.gridSize));
-                    this.addToChunk(o);
-                    // console.log("spawnpoint")
-                }
-                
-                if (hex === "#0000ff") {
-                    const o = new Enemy(new vec3(x*this.gridSize, y*this.gridSize, 0+this.gridSize), data);
-                    this.addToChunk(o);
-                }
-
-                if (hex === "#ffff00") {
-                    const location = new vec3(x*this.gridSize, y*this.gridSize, 0+this.gridSize);
-                    if (data == "255") {
-                        const o = new Platform([location]);
-                        this.addToChunk(o);
-                    } else {
-                        const id = data[1];
-                        const index = data[2];
-                        if (!platforms[id]) platforms[id] = {}
-                        platforms[id][index] = location;
-                    }
-                }
-
-                if (hex === "#ff0000" && data=="200") {
-                    const o = new Spike(new vec3(x*this.gridSize, y*this.gridSize, 0+this.gridSize), this.gridSize);
-                    this.addToChunk(o);
-                }
-
-                if (hex === "#ff00ff") {
-                    const o = new Portal(new vec3(x*this.gridSize, y*this.gridSize, 0+this.gridSize), data, this.levelID);
-                    this.addToChunk(o);
-                }
-            }
-        }
-
-        // platforms //
-            for (const x of Object.values(platforms)) {
-                
-                const entries = Object.entries(x).sort((a, b) => {
-                    return parseInt(a) - parseInt(b);
-                });
-                const positions = entries.map(p => p[1])
-                
-                const o = new Platform(positions);
                 this.addToChunk(o);
             }
 
-        //
+            if (hex === "#ff0000" && parseInt(data) >= 254) {
+                const active = data == "254"
+                const o = new SpawnPoint(new vec3(x*this.gridSize, y*this.gridSize, 0+this.gridSize), active);
+                this.addToChunk(o);
+            }
+            
+            if (hex === "#0000ff") {
+                const o = new Enemy(new vec3(x*this.gridSize, y*this.gridSize, 0+this.gridSize), data);
+                this.addToChunk(o);
+            }
 
+            if (hex === "#ffff00") {
+                const location = new vec3(x*this.gridSize, y*this.gridSize, 0+this.gridSize);
+                if (data == "255") {
+                    const o = new Platform([location]);
+                    this.addToChunk(o);
+                } else {
+                    const id = data[1];
+                    const index = data[2];
+                    if (!platforms[id]) platforms[id] = {}
+                    platforms[id][index] = location;
+                }
+            }
 
-        // TEXTURE //
+            if (hex === "#ff0000" && data=="200") {
+                const o = new Spike(new vec3(x*this.gridSize, y*this.gridSize, 0+this.gridSize), this.gridSize);
+                this.addToChunk(o);
+            }
+
+            if (hex === "#ff0000" && data=="100") {
+                const o = new DeathBarrier(new vec3(x*this.gridSize, y*this.gridSize, 0+this.gridSize), this.gridSize);
+                this.addToChunk(o);
+            }
+
+            if (hex === "#ff00ff") {
+                const o = new Portal(new vec3(x*this.gridSize, y*this.gridSize, 0+this.gridSize), data, this.levelID);
+                this.addToChunk(o);
+            }
+            
+            // if (hex === "#00ff96") { // doesnt work for some reason the colour is slightly offff each time
+            if (
+                tile.r <= 3 && 
+                tile.g >= 252 &&
+                tile.b >= 147 && tile.b <= 153
+            ) {
+                const o = new Interactable(new vec3(x*this.gridSize, y*this.gridSize, 0+this.gridSize), data, this.levelID);
+                this.addToChunk(o);
+            }
+
+            if (hex === "#326432") { // door
+                const o = new gameObject(new vec3(x*this.gridSize, y*this.gridSize, 0-this.gridSize));
+                o.size = new vec3(this.gridSize*2, this.gridSize*11, this.gridSize*4);
+                o.collision = true;
+                o.type = "door";
+                o.faces.push(new Quad(o.getFaceVertecies("front"), "textures/door/door.png"));
+            }
+
+            // if (hex == "#C86464") { // boss chase path
+            if (
+                tile.r >= 200 && tile.r <= 201 &&
+                tile.g >= 100 && tile.g <= 101 &&
+                tile.b >= 100 && tile.b <= 101
+            ) {
+                const location = new vec3(x*this.gridSize, y*this.gridSize, 0+this.gridSize);
+                const index = data;
+                bossPath[index] = location;
+            }
+
+        }}
+
+        // platforms
+        for (const x of Object.values(platforms)) {
+            const entries = Object.entries(x).sort((a, b) => {
+                return parseInt(a[0]) - parseInt(b[0]);
+            });
+            const positions = entries.map(p => p[1])
+            
+            const o = new Platform(positions);
+            this.addToChunk(o);
+        }
+
+        // boss path
+        const entries = Object.entries(bossPath).sort((a, b) => {
+            return parseInt(a) - parseInt(b);
+        });
+        const positions = entries.map(p => p[1])
+        if (positions.length > 0) {
+            const o = new BossChase(positions);
+            this.alwaysLoaded.push(o);
+        }
+
+        // texture
         if (this.levelID != "second") {
             for (let y = 0; y < this.texture.array.length; y++) {
                 for (let x = 0; x < this.texture.array[y].length; x++) {
@@ -269,6 +299,8 @@ class Level {
 
             obj.tick(deltaTime, this);
 
+            if (obj.ignoreChunks) continue;
+            
             const oldChunkLoc = this.getChunkLoc(obj.location);
             if (oldChunkLoc.x !== obj.chunkLoc.x || oldChunkLoc.y !== obj.chunkLoc.y) {
                 this.moveChunk(obj);
@@ -292,7 +324,7 @@ class Level {
             order: [],
         }
         
-        const radius = this.levelID == "second"? 5 : 2;
+        const radius = this.levelID == "second"? 6 : 3;
         const chunksData = this.getChunksData(camera.location, radius);
         const objects = [this.mainQuad];
 
@@ -312,9 +344,6 @@ class Level {
                     if (face_vertices == "culled") continue;
                     if (face_distance >= camera.maxQuadDist) continue;
                 }
-                // if (obj.isMainQuad) {
-                //     face_distance -= 20
-                // }
                 face_distance = Math.max(0, face_distance)
 
                 toDraw.vertices.push(face_vertices)
@@ -331,29 +360,43 @@ class Level {
             this.drawQuad(ctx, toDraw.vertices[o], toDraw.brightness[o], toDraw.distance[o], colour, cameraIsMoving)
         }
 
-        // const [
-        //     face_vertices, 
-        //     face_distance, 
-        //     face_brightness
-        // ] = this.mainQuad.project2d(f, w, h, cameraLoc, new vec3(0, 0, this.z));
-
-        // const x = face_vertices[0].x
-        // const y = face_vertices[0].y
-        // const width = face_vertices[2].x - x
-        // const height = face_vertices[2].y - y
-        
-        // ctx.drawImage(this.texture.image, x, y, width, height);
-
     }
 
     drawQuad(ctx, vertices, brightness, distance, light, cameraIsMoving) {
 
-        function drawSubQuad(ctx, points, subQuadBrightness) {
-            // console.log(brightness)
-            // const c = Math.floor(subQuadBrightness * 255);
-            const c = subQuadBrightness
-            const colour = `rgb(${Math.floor(light.r * c)}, ${Math.floor(light.g * c)}, ${Math.floor(light.b * c)})`;
-            // console.log(colour)
+        const isTexture = typeof brightness != "number";
+
+        let texture;
+        let adjustedBrightness;
+
+        if (isTexture) {
+            texture = brightness;
+            brightness = 1;
+            adjustedBrightness = brightness - distance/20 + 0.3;
+        }
+        else {
+            const close = distance < 10
+            if (close) adjustedBrightness = brightness - distance/20 + 0.3;
+            else adjustedBrightness = brightness - (distance + 3)/25 + 0.35;
+        }
+        adjustedBrightness = Math.min(1, Math.max(0, adjustedBrightness));
+
+
+        if (isTexture) {
+            const x = Math.floor(vertices[0].x)
+            const y = Math.floor(vertices[0].y)
+            const width = Math.floor(vertices[2].x - x)
+            const height = Math.floor(vertices[2].y - y)
+
+            ctx.filter = `brightness(${adjustedBrightness})`;
+            ctx.drawImage(texture, x, y, width, height);
+            ctx.filter = `none`;
+
+        } else {
+            const r = Math.floor(light.r * adjustedBrightness);
+            const g = Math.floor(light.g * adjustedBrightness);
+            const b = Math.floor(light.b * adjustedBrightness);
+            const colour = `rgb(${r}, ${g}, ${b})`;
 
             ctx.lineWidth = 2;
             ctx.lineCap = "round";
@@ -364,193 +407,17 @@ class Level {
 
             ctx.beginPath();
             
-            ctx.moveTo(Math.round(points[0].x), Math.round(points[0].y));
-            for (let i=1; i < points.length; i++) {
-                ctx.lineTo(Math.round(points[i].x), Math.round(points[i].y));
+            ctx.moveTo(Math.round(vertices[0].x), Math.round(vertices[0].y));
+            for (let i=1; i < vertices.length; i++) {
+                ctx.lineTo(Math.round(vertices[i].x), Math.round(vertices[i].y));
             }
             
             ctx.closePath();
             ctx.fill();
             ctx.stroke();
-
         }
 
-        const isTexture = typeof brightness != "number"
-
-        let texture
-
-        if (isTexture) {
-            texture = brightness;
-            brightness = 1;
-        }
-
-        // let adjustedBrightness = brightness - (distance*distance)/1000;
-        let adjustedBrightness = brightness - distance/20 + 0.3
-        if (!isTexture) {
-
-            const close = distance < 10
-            if (close) {
-                adjustedBrightness = brightness - distance/20 + 0.3
-            } else {
-                adjustedBrightness = brightness - (distance + 3)/25 + 0.35
-            }
-        }
-        adjustedBrightness = Math.min(1, Math.max(0, adjustedBrightness));
-
-        if (isTexture) {
-            const x = Math.floor(vertices[0].x)
-            const y = Math.floor(vertices[0].y)
-            const width = Math.floor(vertices[2].x - x)
-            const height = Math.floor(vertices[2].y - y)
-
-            let key = `${texture.src} ${width} ${height} ${adjustedBrightness} ${light.r} ${light.g} ${light.b}`;
-            if (cameraIsMoving) {
-                key = `${texture.src} transition ${light.r} ${light.g} ${light.b}`;
-                // console.log(key)
-            }
-
-            ctx.filter = `brightness(${adjustedBrightness})`;
-            ctx.drawImage(texture, x, y, width, height);
-            ctx.filter = `none`;
-            return
-
-            const temp = this.tempScaledTextures.get(key);
-
-            // logError(`quad dist: ${distance}`)
-            // logError(`quad brightens: ${adjustedBrightness}`)
-
-            if (temp) {
-
-                ctx.drawImage(temp, x, y, width, height);
-
-            } else {
-                
-                // console.log("new scaled texture")
-                logError("new scaled texture")
-
-                const canvas = document.createElement("canvas");
-                canvas.width = width;
-                canvas.height = height;
-                const tempCtx = canvas.getContext("2d");
-                tempCtx.imageSmoothingEnabled = false;
-
-                tempCtx.drawImage(texture, 0, 0, width, height);
-
-                const tintColour = `rgb(${light.r}, ${light.g}, ${light.b})`;
-                if (tintColour != "rgb(255, 255, 255)") {
-                    tempCtx.globalCompositeOperation = 'multiply';
-                    tempCtx.fillStyle = tintColour;
-                    tempCtx.fillRect(0, 0, width, height);
-
-                    tempCtx.globalCompositeOperation = 'source-over';
-                }
-                
-                tempCtx.fillStyle = `rgba(0, 0, 0, ${1 - adjustedBrightness})`;
-                tempCtx.fillRect(0, 0, width, height);
-
-                tempCtx.globalCompositeOperation = 'destination-in';
-                tempCtx.drawImage(texture, 0, 0, width, height);
-
-                tempCtx.globalCompositeOperation = 'source-over';
-
-
-                // tempCtx.globalCompositeOperation = 'colour';
-
-                // const tintColour = `rgba(${light.r}, ${light.g}, ${light.b} ${1 - adjustedBrightness})`;
-                // tempCtx.fillStyle = tintColour;
-                // tempCtx.fillRect(0, 0, width, height);
-
-                // tempCtx.globalCompositeOperation = 'source-over';
-
-                this.tempScaledTextures.set(key, canvas);
-        
-                ctx.drawImage(canvas, x, y);
-
-            }
-
-        } else {
-            drawSubQuad(ctx, vertices, adjustedBrightness);
-        }
-
-        // const texture = brightness;
-
-        // const textureHeight = texture.length;
-        // const textureWidth = texture[0].length;
-        
-        // // Bilinear interpolation formula
-        // //  P(u, v) = (1-u)(1-v) * P0
-        // //            + u(1-v)   * P1
-        // //            + u v      * P2
-        // //            + (1-u)v   * P3
-        
-        // function interp(u, v) {
-        //     return  (vertices[0].mult((1-u)*(1-v)))
-        //         .add(vertices[1].mult(   u *(1-v)))
-        //         .add(vertices[2].mult(   u *   v ))
-        //         .add(vertices[3].mult((1-u)*   v ));
-        // }
-        
-		// for (let y=0; y<textureHeight; y++) {
-		// 	for (let x=0; x<textureWidth; x++) {
-        //         if (texture[y][x]===" ") continue
-
-        //         const u0 = x / textureWidth;
-        //         const v0 = y / textureHeight;
-        //         const u1 = (x + 1) / textureWidth;
-        //         const v1 = (y + 1) / textureHeight;
-                
-        //         const subPoints = [
-        //             interp(u0, v0),
-        //             interp(u1, v0),
-        //             interp(u1, v1),
-        //             interp(u0, v1),
-        //         ];
-        //         const brightness = texture[y][x];
-		// 		drawSubQuad(ctx, subPoints, brightness);
-		// 	}
-		// }
 	}
-
-    // getCloseTo(obj) {
-    //     // const distance = obj.size.mult(2)
-    //     const distance = new vec3(0.5, 0.5, 0.5)
-    //     const close = []
-    //     const min = obj.getPoint().bl.sub(distance).div(this.gridSize)
-    //     const max = obj.getPoint().tr.add(distance).div(this.gridSize)
-
-    //     const width = this.texture.image.width
-    //     const height = this.texture.image.height
-
-    //     min.x = Math.min(width-1, Math.max(0, Math.floor(min.x)))
-    //     max.x = Math.min(width-1, Math.max(0, Math.floor(max.x)))
-        
-    //     min.y = Math.min(height-1, Math.max(0, Math.floor(min.y)))
-    //     max.y = Math.min(height-1, Math.max(0, Math.floor(max.y)))
-    
-    //     for (let y=min.y; y<max.y; y++) {
-    //         for (let x=min.x; x<max.x; x++) {
-    //             const o = this.gridObjects[y][x];
-    //             if (!o) continue;
-    //             if (!o.collision) continue;
-    //             close.push(o);
-    //         }
-    //     }
-    
-    //     // console.log(
-    //     //     this.gridObjects.length,
-    //     //     this.gridObjects[0].length,
-    //     //     this.gridObjects[50].length,
-    //     // )
-    //     // console.log({
-    //     //     distance,
-    //     //     close,
-    //     //     min,
-    //     //     max,
-    //     // })
-        
-    //     return close;
-    // }
-
 }
 
 class Main {
@@ -604,7 +471,7 @@ class Main {
         this.player = new Player(new vec3(0,0,0))
         this.level = {
             main: new Level("main", "main", 0, this.player),
-            second: new Level("second","main", -15, this.player),
+            second: new Level("second","back", -15, this.player),
         };
 
         // this.levelLayer = "main"
@@ -700,7 +567,7 @@ class Main {
 
 
             // move camera
-            const baseFov = 70
+            const baseFov = 90
             const extraVelocity = Math.abs(this.player.velocity) > 5? 1 : 0
             const fovMultiplier = 30
             const zMoveMultiplier = 1/4
