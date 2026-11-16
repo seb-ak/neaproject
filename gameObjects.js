@@ -459,21 +459,21 @@ export class Player extends physicsObject {
             key4: false,
         }
 
-        this.unlocks = {
-            doubleJump: true,
-            dash: true,
-            slide: true,
+        // this.unlocks = {
+        //     doubleJump: true,
+        //     dash: true,
+        //     slide: true,
             
-            slideAttack: false,
-            slamAttack: false,
+        //     slideAttack: false,
+        //     slamAttack: false,
             
-            hat: false,
+        //     hat: false,
 
-            key1: false,
-            key2: false,
-            key3: false,
-            key4: false,
-        }
+        //     key1: false,
+        //     key2: false,
+        //     key3: false,
+        //     key4: false,
+        // }
     }
     
     spawn(level) {
@@ -848,7 +848,7 @@ export class Player extends physicsObject {
     }
 
     tick(deltaTime, level) {
-        const logs = true;
+        const logs = false;
         
         if (!level.loaded) return;
         if (this.initialSpawn) {this.spawn(level); this.initialSpawn = false;}
