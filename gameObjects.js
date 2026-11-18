@@ -481,7 +481,7 @@ export class Player extends physicsObject {
         this.startingSpawnpoint = 0
 
         // test other parts of map
-        this.startingSpawnpoint = 5
+        //this.startingSpawnpoint = 5
         if (this.startingSpawnpoint > 1) this.unlocks.doubleJump = true
         if (this.startingSpawnpoint > 2) this.unlocks.dash = true
         if (this.startingSpawnpoint > 4) this.unlocks.slide = true
