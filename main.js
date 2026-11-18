@@ -1,5 +1,5 @@
 import { logError, clearLog, vec3, loadImage, Quad } from "./utils.js";
-import { gameObject, levelTile, SpawnPoint, Player, Enemy, Platform, Portal, Spike, BossChase, Interactable, DeathBarrier } from "./gameObjects.js";
+import { gameObject, levelTile, SpawnPoint, Player, Enemy, Platform, Portal, Spike, BossChase, Interactable, DeathBarrier, Boss } from "./gameObjects.js";
 import { UiController } from "./ui.js"
 
 class Level {
@@ -123,6 +123,7 @@ class Level {
 
         const platforms = {}
         const bossPath = {}
+        const bossLocations = []
         // COLLISION //
         for (let y = 0; y < this.collision.array.length; y++) {
         for (let x = 0; x < this.collision.array[y].length; x++) {
@@ -150,6 +151,11 @@ class Level {
             if (hex === "#ff0000" && parseInt(data) >= 240) {
                 const o = new SpawnPoint(new vec3(x*this.gridSize, y*this.gridSize, 0+this.gridSize), 255-parseInt(data));
                 this.addToChunk(o);
+            }
+            
+            if (hex === "#00ff00") {
+                const index = 255-parseInt(data)
+                bossLocations[index] = new vec3(x*this.gridSize, y*this.gridSize, 0)
             }
             
             if (hex === "#0000ff") {
@@ -236,6 +242,13 @@ class Level {
             const o = new BossChase(positions);
             this.alwaysLoaded.push(o);
         }
+
+        // boss
+        if (bossLocations.length>0) {
+            const o = new Boss(bossLocations);
+            this.alwaysLoaded.push(o);
+        }
+
 
         // texture
         if (this.levelID != "second") {

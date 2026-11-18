@@ -275,14 +275,14 @@ export class UiController {
         // game screen
             // const healthBar = new UiElement(gameScreen, "Health", 0.3,0.3, 4,1);
 
-            this.topText = new UiElement(gameScreen, "", 0.5,0, 11, 0.7);
+            this.topText = new UiElement(gameScreen, "", 0.5,0.1, 11, 0.7);
             this.topText.borderBrightness = 1//0.5;
             this.topText.textOffsetX = 0.1
             this.topText.textOffsetY = 6
             this.topText.textSize = 0.4;
             this.topText.topText = true;
 
-            this.bottomText = new UiElement(gameScreen, "", 3.5,8, 5,0.7);
+            this.bottomText = new UiElement(gameScreen, "", 3.5,7.9, 5,0.7);
             this.bottomText.borderBrightness = 0.5;
             this.bottomText.textSize = 0.5;
             this.bottomText.textOffsetY = 4
@@ -360,6 +360,12 @@ class UiScreen {
         for (const e of this.elements) {
             if (e.topText && !topTextVisible) continue;
             if (e.bottomText && !bottomTextVisible) continue;
+
+            if (e.topText || e.bottomText) {
+                e.time += 0.4
+                e.borderBrightness = 0.5 + 0.5*Math.sin(e.time)
+            }
+
             e.draw(ctx, this.gridSize, colour);
         }
     }
@@ -476,6 +482,7 @@ class UiElement {
         this.textOffsetX = 0;
         this.textOffsetY = 0;
 
+        this.time = 0;
     } 
 
     draw(ctx, gridSize, colour) {

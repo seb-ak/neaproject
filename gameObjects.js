@@ -177,6 +177,7 @@ class physicsObject extends gameObject {
         this.deceleration = new vec3(0.1, 0.1, 0.1);
         this.isOnFloor = false;
         this.baseGravity = 0.5;
+        this.verticalPositionCorrection = 0;
 
         this.doesPlatformVelocity = false;
         this.platformVelocity = new vec3(0, 0, 0);
@@ -224,6 +225,11 @@ class physicsObject extends gameObject {
             if (obj.isPhysicsObject) this.touchingPhysicsObjects.push(obj)//this.platformVelocity = obj.velocity
             // else this.platformVelocity = new vec3(0, 0, 0);
         }
+
+        if (obj.type == "player") {
+            const damage = this.attackType.contactDamage;
+            if (damage) obj.damage(damage);
+        }
     }
     resolveY(obj) {
         if (!obj.collision) return;
@@ -253,9 +259,13 @@ class physicsObject extends gameObject {
         }
         // if (this.type==="player") console.log(this.isOnFloor, this.velocity.y)
 
+        if (obj.type == "player") {
+            const damage = this.attackType.contactDamage;
+            if (damage) obj.damage(damage);
+        }
     }
     doY(velocity, deltaTime, steps, player) {
-        this.location.y += velocity.y * deltaTime / steps;
+        this.location.y += (velocity.y * deltaTime + this.verticalPositionCorrection) / steps;
         for (const obj of this.collisionObjects) {
             this.resolveY(obj);
         }
@@ -272,7 +282,7 @@ class physicsObject extends gameObject {
             player.firstCheckDirection = "x";
         }
     }
-    doCollision(deltaTime, level) {
+    doCollision(deltaTime, level, logs=false) {
         this.collisionObjects = this.getCollisionObjects(level);
 
         const velocity = this.velocity.add(this.platformVelocity);
@@ -281,7 +291,7 @@ class physicsObject extends gameObject {
             Math.abs(velocity.y * deltaTime) / level.gridSize
         ))
         
-        logError(`${this.type} collisions: ${this.collisionObjects.length}`)
+        if (logs) logError(`${this.type} collisions: ${this.collisionObjects.length}`)
         // logError(`${this.type} movement steps: ${steps}`)
         
         this.touchingPhysicsObjects = [];
@@ -471,7 +481,7 @@ export class Player extends physicsObject {
         this.startingSpawnpoint = 0
 
         // test other parts of map
-        //this.startingSpawnpoint = 5
+        this.startingSpawnpoint = 5
         if (this.startingSpawnpoint > 1) this.unlocks.doubleJump = true
         if (this.startingSpawnpoint > 2) this.unlocks.dash = true
         if (this.startingSpawnpoint > 4) this.unlocks.slide = true
@@ -580,6 +590,7 @@ export class Player extends physicsObject {
         if (!this.isOnFloor) {
             dx *= 0.6
         }
+        dx *= deltaTime * 144
 
         let maxVel = this.maxVel
         if (this.isCrouching) maxVel = maxVel.mult(0.4)
@@ -745,7 +756,9 @@ export class Player extends physicsObject {
             if (logs) logError("gravity: normal")
         }
 
-        this.velocity.y -= gravity * deltaTime * 144
+        const gravityDelta = gravity * deltaTime * 144
+        this.verticalPositionCorrection = gravityDelta * deltaTime / 2
+        this.velocity.y -= gravityDelta
 
         if (logs) logError(`gravity:${gravity.toFixed(3)}`)
 
@@ -900,6 +913,7 @@ export class Player extends physicsObject {
             if (this.deathTimer != -1) { this.updateFaces(false); return; }
 
         // movement
+            this.verticalPositionCorrection = 0;
             this.collisionObjects = this.getCollisionObjects(level);
 
             if (this.teleportDirection != 0) this.portalTeleport(deltaTime)
@@ -1512,4 +1526,62 @@ export class DeathBarrier extends physicsObject {
 
     }
 
+}
+
+export class Boss extends physicsObject {
+    
+    constructor(locations) {
+        console.log(locations)
+        super(locations[1].add(locations[2]).div(2))
+
+        this.left = locations[0]
+        this.centerLeft = locations[1]
+        this.center = this.location
+        this.centerRight = locations[2]
+        this.right = locations[3]
+
+        this.objects = []
+        this.objects.push(new physicsObject(this.center))
+
+        this.phase = "idle"
+        this.state = 
+        this.attackTime = 
+
+        this.attacks = {
+            leftSwipe: {
+                time:
+            },
+            rightSwipe: {
+                time:
+            },
+            leftPunch: {
+
+            },
+            rightPunch: {
+
+            },
+        }
+
+    }
+
+    tick(deltaTime, level) {
+
+        if (this.phase == "idle") {
+
+        } else if (this.phase == "first") {
+
+        } else if (this.phase == "second") {
+
+        }
+
+
+        const player = level.player
+
+        for (const obj of this.objects) {
+
+            
+
+        }
+
+    }
 }
