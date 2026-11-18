@@ -1549,10 +1549,10 @@ export class Boss extends physicsObject {
 
         this.attacks = {
             leftSwipe: {
-                time:
+                time: 0
             },
             rightSwipe: {
-                time:
+                time: 0
             },
             leftPunch: {
 
