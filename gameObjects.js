@@ -122,7 +122,7 @@ export class levelTile extends gameObject {
 }
 
 export class SpawnPoint extends gameObject {
-    constructor(location, active = false) {
+    constructor(location, id) {
         super(location);
         this.size = new vec3(1, 1.5, 0);
 
@@ -130,7 +130,8 @@ export class SpawnPoint extends gameObject {
         this.collision = false;
         
         this.type = "SpawnPoint"
-        this.active = active;
+        this.id = id;
+        this.active = false
 
         this.brightness = 0.8
 
@@ -459,21 +460,22 @@ export class Player extends physicsObject {
             key4: false,
         }
 
-        // this.unlocks = {
-        //     doubleJump: true,
-        //     dash: true,
-        //     slide: true,
-            
-        //     slideAttack: false,
-        //     slamAttack: false,
-            
-        //     hat: false,
+        this.topTextTime = 0
+        this.topText = "Hold jump to jump higher.  Tap for less height.  S to crouch"
+        this.topTextMaxTime = 30
 
-        //     key1: false,
-        //     key2: false,
-        //     key3: false,
-        //     key4: false,
-        // }
+        this.bottomTextTime = -1
+        this.bottomText = ""
+        this.bottomTextMaxTime = 8
+
+        this.startingSpawnpoint = 0
+
+        // test other parts of map
+        //this.startingSpawnpoint = 5
+        if (this.startingSpawnpoint > 1) this.unlocks.doubleJump = true
+        if (this.startingSpawnpoint > 2) this.unlocks.dash = true
+        if (this.startingSpawnpoint > 4) this.unlocks.slide = true
+        
     }
     
     spawn(level) {
@@ -497,7 +499,8 @@ export class Player extends physicsObject {
         if (this.activeSpawn == undefined) {
             for (const obj of level.getChunksData().object) {
                 if (obj.type !== "SpawnPoint") continue;
-                if (!obj.active) continue;
+                if (obj.id != this.startingSpawnpoint) continue;
+                obj.active = true;
                 this.activeSpawn = { location: obj.location, levelID: level.levelID, object: obj };
                 break;
             }
@@ -844,7 +847,35 @@ export class Player extends physicsObject {
 
     unlock(item) {
         this.unlocks[item] = true;
-        console.log(`unlocked ${item}`);
+        // console.log(`unlocked ${item}`);
+
+        if (item == "door") {
+            this.topTextTime = 0;
+            if (this.unlocks.key1 && this.unlocks.key2 && this.unlocks.key3 && this.unlocks.key4) this.topText = "door unlocked";
+            else this.topText = "need 4 keys to open the door";
+            return
+        }
+
+        const itemText = {
+            doubleJump: "Hold UP and tap JUMP in the air",
+            dash: "Hold LEFT or RIGHT and tap JUMP in the air",
+            slide: "Hold crouch whilst running to slide, also jump when sliding",
+            slideAttack: "",
+            slamAttack: "",
+            hat: "Wow nice hat",
+            key1: "key 1 found",
+            key2: "key 2 found",
+            key3: "key 3 found",
+            key4: "key 4 found",
+        }
+
+        if (Object.keys(itemText).includes(item)) {
+            this.topTextTime = 0;
+            this.topText = itemText[item];;
+        }
+        
+        this.bottomTextTime = 0;
+        this.bottomText = `unlocked ${item}`;
     }
 
     tick(deltaTime, level) {
@@ -853,6 +884,12 @@ export class Player extends physicsObject {
         if (!level.loaded) return;
         if (this.initialSpawn) {this.spawn(level); this.initialSpawn = false;}
 
+        if (this.topTextTime != -1) this.topTextTime += deltaTime// * 1000;
+        if (this.bottomTextTime != -1) this.bottomTextTime += deltaTime// * 1000;
+        if (this.topTextTime >= this.topTextMaxTime) this.topTextTime = -1;
+        if (this.bottomTextTime >= this.bottomTextMaxTime) this.bottomTextTime = -1;
+
+        
         // death
             if (this.health <= 0 && this.deathTimer == -1) this.deathTimer = 2000;
             if (this.deathTimer != -1) this.deathTimer -= deltaTime * 1000;
@@ -890,6 +927,10 @@ export class Player extends physicsObject {
                 obj.active = true;
                 
                 this.activeSpawn = { location: obj.location, levelID: level.levelID, object: obj };
+
+                this.bottomText = "Checkpoint reached"
+                this.bottomTextTime = 0
+
                 console.log("new spawnpoint unlocked")
             }
 
@@ -933,7 +974,7 @@ export class Enemy extends physicsObject {
 
         this.health = 1;
 
-        this.speed = 50;
+        this.speed = 120;
 
         this.collision = true;
 
@@ -965,6 +1006,10 @@ export class Enemy extends physicsObject {
             this.movementType.chase = true
         } else if (data === "220") {
             this.movementType.goomba = true
+            this.movementType.jump = true
+        } else if (data === "230") {
+            this.size.x += 0.1
+            this.movementType.chase = true
             this.movementType.jump = true
         }
     }
@@ -1092,20 +1137,26 @@ export class BossChase extends physicsObject {
         if (logs) logError(`${this.location.x.toFixed(2)} ${this.location.y.toFixed(2)} ${this.location.z.toFixed(2)},  ${this.speed}`)
 
         if (this.changeSpeedTime <= 0) {
-            if (!this.moving && distance < 40 && level.player.isOnFloor) {
+            if (!this.moving && distance < 20 && level.player.isOnFloor) {
                 this.moving = true;
                 this.changeSpeedTime = 0.4;
                 this.speed = 0;
+                console.log("moving")
             }
             else if (this.moving && this.speed == 0) this.speed = 4;
-            else if (this.moving && distance < 15) this.speed = 6;
-            else if (this.moving && distance < 20) this.speed = 7;
-            else if (this.moving && this.speed != 0) this.speed = 15;
+            // else if (this.moving && distance < 15) this.speed = 6;
+            // else if (this.moving && distance < 20) this.speed = 7;
+            // else if (this.moving && this.speed != 0) this.speed = 15;
+            else if (this.moving) {
+                const distance = level.player.getPoint().center.sub(this.getPoint().center).length()
+                // this.speed = Math.max(level.player.maxVel.x, level.player.velocity.length()/2);
+                this.speed = Math.max(level.player.maxVel.x-2, distance/1.5);
+            }
             
             if (this.speed != 0) this.changeSpeedTime = 1 + Math.random();
         }
         if (this.moving) this.changeSpeedTime -= deltaTime;
-
+        console.log(this.speed)
 
         if (this.targetPositionIndex < this.positions.length) {
             const target = this.positions[this.targetPositionIndex]
@@ -1174,6 +1225,8 @@ export class Platform extends physicsObject {
 
     tick(deltaTime, level) {
         if (!level.loaded) return;
+
+        console.log(this.positions)
 
         if (this.positions.length > 1) {
 
@@ -1251,10 +1304,13 @@ export class Interactable extends gameObject {
 
         const player = this.level.player;
         
-        const distance = player.location.sub(this.location).length();
+        const distance = player.getPoint().center.sub(this.getPoint().center).length();
 
         if (player.levelID != this.levelID) return;
         if (distance > this.interactDistance) return;
+
+        player.bottomText = (this.id == 120? "press E to interact":"press E to pickup")
+        player.bottomTextTime = player.bottomTextMaxTime - 0.1
 
         const selectHoldTime = player.selectHoldTime;
 
@@ -1279,14 +1335,14 @@ export class Interactable extends gameObject {
         else if (this.id == "103") player.unlock("slideAttack")
         else if (this.id == "104") player.unlock("slamAttack")
 
-        else if (this.id == "105") player.unlock("hat")
+        else if (this.id == "105") player.unlock("doubleJump")//hat
 
         else if (this.id == "110") player.unlock("key1")
         else if (this.id == "111") player.unlock("key2")
         else if (this.id == "112") player.unlock("key3")
         else if (this.id == "113") player.unlock("key4")
 
-        else if (this.id == "120") this.openDoor(player);
+        else if (this.id == "120") {player.unlock("door"); this.openDoor(player);}
     }
 
     openDoor(player) {
@@ -1334,6 +1390,8 @@ export class Portal extends gameObject {
         this.nextTextureTimeMax = 400
         this.nextTextureTime = 0
 
+        this.interactDistance = 1;
+
         this.load();
     }
 
@@ -1379,9 +1437,13 @@ export class Portal extends gameObject {
 
         const player = this.level.player
 
-        if (player.levelID != this.levelID) return
+        const distance = player.getPoint().center.sub(this.getPoint().center).length();
 
-        if ( !this.isCollidingWith(player) ) return
+        if (player.levelID != this.levelID) return;
+        if (distance > this.interactDistance) return;
+
+        player.bottomText = "press E to teleport"
+        player.bottomTextTime = player.bottomTextMaxTime - 0.1
 
         const selectHoldTime = player.selectHoldTime
 

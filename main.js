@@ -147,9 +147,8 @@ class Level {
                 this.addToChunk(o);
             }
 
-            if (hex === "#ff0000" && parseInt(data) >= 254) {
-                const active = data == "254"
-                const o = new SpawnPoint(new vec3(x*this.gridSize, y*this.gridSize, 0+this.gridSize), active);
+            if (hex === "#ff0000" && parseInt(data) >= 240) {
+                const o = new SpawnPoint(new vec3(x*this.gridSize, y*this.gridSize, 0+this.gridSize), 255-parseInt(data));
                 this.addToChunk(o);
             }
             
@@ -164,7 +163,7 @@ class Level {
                     const o = new Platform([location]);
                     this.addToChunk(o);
                 } else {
-                    const id = data[1];
+                    const id = data.substring(0,2);
                     const index = data[2];
                     if (!platforms[id]) platforms[id] = {}
                     platforms[id][index] = location;
@@ -557,6 +556,11 @@ class Main {
 
             this.player.tick(this.deltaTime, activeLevel)
 
+            this.ui.topText.text = this.player.topText
+            this.ui.bottomText.text = this.player.bottomText
+            this.ui.topTextVisible = this.player.topTextTime != -1
+            this.ui.bottomTextVisible = this.player.bottomTextTime != -1
+
 
             // switch between game ui and death screen when player is dead // 
             if (this.player.deathTimer != -1 && this.ui.activeScreen == this.ui.gameScreen) {
@@ -717,5 +721,5 @@ class Main {
 
 }
 
-let started = false;
-document.addEventListener("mousedown", (e) => { if (started) return; new Main(); started = true; });
+let main;
+document.addEventListener("mousedown", (e) => { if (!main) main = new Main(); });

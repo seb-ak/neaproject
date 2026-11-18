@@ -23,7 +23,8 @@ export class UiController {
             down: false
         }
 
-        
+        this.topTextVisible = false;
+        this.bottomTextVisible = false;
 
         const gameWindow = document.getElementById("gameCanvas");
 
@@ -272,8 +273,20 @@ export class UiController {
             }
 
         // game screen
-            const healthBar = new UiElement(gameScreen, "Health", 0.3,0.3, 4,1);
+            // const healthBar = new UiElement(gameScreen, "Health", 0.3,0.3, 4,1);
 
+            this.topText = new UiElement(gameScreen, "", 0.5,0, 11, 0.7);
+            this.topText.borderBrightness = 1//0.5;
+            this.topText.textOffsetX = 0.1
+            this.topText.textOffsetY = 6
+            this.topText.textSize = 0.4;
+            this.topText.topText = true;
+
+            this.bottomText = new UiElement(gameScreen, "", 3.5,8, 5,0.7);
+            this.bottomText.borderBrightness = 0.5;
+            this.bottomText.textSize = 0.5;
+            this.bottomText.textOffsetY = 4
+            this.bottomText.bottomText = true;
 
             gameScreen.backAction = () => { this.goToScreen(pauseMenuScreen); }
 
@@ -321,7 +334,7 @@ export class UiController {
         const colour = this.main.settings.dithering ?
             {dark:{r:0,g:0,b:0},light:{r:255,g:255,b:255}} : this.main.settings.colours[this.main.settings.colourScheme]
 
-        this.activeScreen.draw(ctx, colour);
+        this.activeScreen.draw(ctx, colour, this.topTextVisible, this.bottomTextVisible);
 
     }
 
@@ -342,9 +355,11 @@ class UiScreen {
 
     }
 
-    draw(ctx, colour) {
+    draw(ctx, colour, topTextVisible, bottomTextVisible) {
 
         for (const e of this.elements) {
+            if (e.topText && !topTextVisible) continue;
+            if (e.bottomText && !bottomTextVisible) continue;
             e.draw(ctx, this.gridSize, colour);
         }
     }
@@ -400,6 +415,20 @@ class UiScreen {
                 e.selected = false;
             }
 
+            // if (e.topText) {
+            //     const maxTime = 60
+            //     const height = 2
+            //     e.y = -Math.min(1, -(1/maxTime)*topTextTime*topTextTime) * height - 1
+            //     console.log("top text", e.y)
+            // }
+
+            // if (e.bottomText) {
+            //     const maxTime = 10
+            //     const height = 2
+            //     e.y = Math.min(1, -(1/maxTime)*bottomTextTime*bottomTextTime) * height + 10
+            //     console.log("bottom text", e.y)
+            // }
+
         }
 
         return inputMode;
@@ -444,7 +473,8 @@ class UiElement {
         this.textSize = 1.0;
         this.textBrightness = 1.0;
 
-
+        this.textOffsetX = 0;
+        this.textOffsetY = 0;
 
     } 
 
@@ -485,7 +515,7 @@ class UiElement {
 
         ctx.font = `${textSize * gridSize}px Arial`;
         ctx.fillStyle = textColor;
-        ctx.fillText(this.text, x + borderWidth*2, y + textSize * gridSize - borderWidth*2);
+        ctx.fillText(this.text, x + borderWidth*2 + this.textOffsetX, y + textSize * gridSize - borderWidth*2 + this.textOffsetY);
 
     }
 
