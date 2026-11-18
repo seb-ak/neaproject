@@ -307,7 +307,8 @@ export class UiController {
         [this.activeScreen, this.lastScreen] = [this.lastScreen, this.activeScreen]
     }
 
-    tick() {
+    tick(deltaTime) {
+        this.deltaTime = deltaTime
 
         const paused = this.activeScreen != this.gameScreen;
 
@@ -319,7 +320,7 @@ export class UiController {
 
     }
 
-    draw(ctx) {
+    draw(ctx, deltaTime) {
 
         const paused = this.activeScreen != this.gameScreen;
 
@@ -334,7 +335,7 @@ export class UiController {
         const colour = this.main.settings.dithering ?
             {dark:{r:0,g:0,b:0},light:{r:255,g:255,b:255}} : this.main.settings.colours[this.main.settings.colourScheme]
 
-        this.activeScreen.draw(ctx, colour, this.topTextVisible, this.bottomTextVisible);
+        this.activeScreen.draw(ctx, colour, this.topTextVisible, this.bottomTextVisible, this.deltaTime);
 
     }
 
@@ -355,14 +356,15 @@ class UiScreen {
 
     }
 
-    draw(ctx, colour, topTextVisible, bottomTextVisible) {
+    draw(ctx, colour, topTextVisible, bottomTextVisible, deltaTime) {
 
         for (const e of this.elements) {
             if (e.topText && !topTextVisible) continue;
             if (e.bottomText && !bottomTextVisible) continue;
 
             if (e.topText || e.bottomText) {
-                e.time += 0.4
+                console.log(deltaTime)
+                e.time += 0.4 * deltaTime * 60
                 e.borderBrightness = 0.5 + 0.5*Math.sin(e.time)
             }
 

@@ -481,7 +481,7 @@ export class Player extends physicsObject {
         this.startingSpawnpoint = 0
 
         // test other parts of map
-        //this.startingSpawnpoint = 5
+        this.startingSpawnpoint = 11
         if (this.startingSpawnpoint > 1) this.unlocks.doubleJump = true
         if (this.startingSpawnpoint > 2) this.unlocks.dash = true
         if (this.startingSpawnpoint > 4) this.unlocks.slide = true
@@ -1240,7 +1240,7 @@ export class Platform extends physicsObject {
     tick(deltaTime, level) {
         if (!level.loaded) return;
 
-        console.log(this.positions)
+        // console.log(this.positions)
 
         if (this.positions.length > 1) {
 
@@ -1531,57 +1531,157 @@ export class DeathBarrier extends physicsObject {
 export class Boss extends physicsObject {
     
     constructor(locations) {
-        console.log(locations)
+        // console.log(locations)
         super(locations[1].add(locations[2]).div(2))
 
-        this.left = locations[0]
-        this.centerLeft = locations[1]
-        this.center = this.location
-        this.centerRight = locations[2]
-        this.right = locations[3]
+        this.ticking = true;
+        this.ignoreChunks = true;
+
+        this.left = locations[0];
+        this.centerLeft = locations[1];
+        this.center = this.location;
+        this.centerRight = locations[2];
+        this.right = locations[3];
 
         this.objects = []
-        this.objects.push(new physicsObject(this.center))
+
+        this.leftHand = new physicsObject(this.left);
+        this.leftHand.size = new vec3(1,1,1);
+        this.leftHand.origin = this.leftHand.location.sub(this.leftHand.size.div(2));
+        
+        this.rightHand = new physicsObject(this.center);
+        this.rightHand.size = new vec3(1,1,1);
+        this.rightHand.origin = this.rightHand.location.sub(this.rightHand.size.div(2));
+        
+        this.body = new physicsObject(this.right);
+        this.body.size = new vec3(1,1,1);
+        this.body.origin = this.body.location.sub(this.body.size.div(2));
 
         this.phase = "idle"
-        this.state = 
-        this.attackTime = 
+        this.state = ""
+        this.attackTime = 0
 
-        this.attacks = {
+        this.attackCooldown = 3
+
+        this.attacks = ["leftSwipe", "rightSwipe", "leftPunch", "rightPunch"]
+        this.activeAttack = "none"
+
+        this.attackData = {
             leftSwipe: {
-                time: 0
+                time: 2,
+                object: this.leftHand,
+                waypoints: [new vec3(0,0,0), new vec3(-1,0,0), new vec3(-2,-1,0), new vec3(10,-1,0)],
             },
             rightSwipe: {
-                time: 0
+                time: 2,
+                object: this.rightHand,
+                waypoints: [new vec3(0,0,0), new vec3(1,0,0), new vec3(2,-1,0), new vec3(-10,-1,0)],
             },
             leftPunch: {
-
+                time: 2,
+                object: this.leftHand,
+                waypoints: [new vec3(0,0,0), new vec3(0,0.5,0), new vec3(0,1,0), new vec3(0,-1,0), new vec3(0,0,0)],
+                
             },
             rightPunch: {
+                time: 2,
+                object: this.rightHand,
+                waypoints: [new vec3(0,0,0), new vec3(0,0.5,0), new vec3(0,1,0), new vec3(0,-1,0), new vec3(0,0,0)],
 
             },
         }
 
+        this.health = 9;
+
+        this.faces = [
+            new Quad(this.leftHand.getFaceVertecies("front"),   1),
+            new Quad(this.body.getFaceVertecies("front"),       1),
+            new Quad(this.rightHand.getFaceVertecies("front"),  1),
+        ]
+
+        this.updateFaces();
+
+    }
+
+    playerDistanceTo(location) {
+        return this.level.player.getPoint().center.sub(location).length();
+    }
+
+    chooseRandom(list) {
+        const i = Math.floor(Math.random()*list.length);
+        return list[i];
+    }
+
+    startAttack(attack) {
+        this.activeAttack = attack;
+        this.maxAttackTime = this.attackData[attack].time;
+        this.attackTime = this.attackData[attack].time;
+        this.waypoints = this.attackData[attack].waypoints;
+        this.attackObject = this.attackData[attack].object
+    }
+
+    doAttack() {
+        if (this.waypoints) {
+            const i = (this.attackTime/this.maxAttackTime) * this.waypoints.length;
+            const wayThroughI = (this.attackTime/this.maxAttackTime) * this.waypoints.length;
+            const start = this.waypoints[i]
+            const direction = this.waypoints[i] + this.waypoints[(i+1) % this.waypoints.length]
+
+            this.attackObject.location = this.attackObject.location.add(start.add(direction.mult(wayThroughI)))
+        }
+        if (this.activeAttack == "rightSwipe") {
+
+        }
     }
 
     tick(deltaTime, level) {
 
+        this.level = level
+        const player = level.player
+
+        console.log(this.leftHand, this.rightHand, this.body)
+
         if (this.phase == "idle") {
+
+            if (this.playerDistanceTo(this.center < 20)) {
+                this.phase = "first"
+            }
 
         } else if (this.phase == "first") {
 
+            if (this.health <= 3) {
+                this.phase = "second"
+            }
+
+            if (this.attackTime < -this.attackCooldown) {
+                const attack = this.chooseRandom(this.attacks);
+                this.startAttack(attack)
+            }
+
         } else if (this.phase == "second") {
 
+            if (this.attackTime < 0) {
+
+            }
+
         }
 
-
-        const player = level.player
+        this.attackTime -= deltaTime * 1000
 
         for (const obj of this.objects) {
-
-            
+   
 
         }
+
+        this.updateFaces();
+
+    }
+
+    updateFaces() {
+
+        this.faces[0].vertices3d = this.leftHand.getFaceVertecies("front");
+        this.faces[1].vertices3d = this.body.getFaceVertecies("front");
+        this.faces[2].vertices3d = this.rightHand.getFaceVertecies("front");
 
     }
 }

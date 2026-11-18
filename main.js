@@ -630,7 +630,7 @@ class Main {
 
         
 
-        this.ui.tick()
+        this.ui.tick(this.deltaTime)
         
         this.draw();
         
