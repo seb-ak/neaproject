@@ -1782,6 +1782,11 @@ export class Boss extends physicsObject {
 
 
     reset() {
+        
+        // full reset boss
+        this.health = 3;
+        // harder
+
         this.attackNumber = 1;
 
         this.activeAttack = "none";
@@ -1840,7 +1845,7 @@ export class Boss extends physicsObject {
 
             this.attackObject.location = this.attackOrigin.add(offset);
 
-            if (this.segmentIndex == this.waypoints.length - 1) {
+            if (segmentIndex == this.waypoints.length - 2) {
                 this.returningToOrigin = true;
                 this.weakpointActive = false;
             }
@@ -1990,7 +1995,7 @@ export class Boss extends physicsObject {
             this.doAttack(deltaTime);
         }
         this.weakpoint.location = this.location.add(this.weakPointoffset);
-
+console.log(this.returningToOrigin)
         for (const obj of this.childObjects) {
             if (this.phase == "dead") break;
             
@@ -2087,5 +2092,10 @@ export class Boss extends physicsObject {
             const textureIndex = Math.max(0, Math.min(3, this.health))
             this.faces[5].brightness = this.faceTextures[textureIndex]
         }
+
+        //test
+        // this.faces[0].brightness = this.returningToOrigin? 1 : 0
+        // this.faces[10].brightness = this.returningToOrigin? 1 : 0
+
     }
 }
