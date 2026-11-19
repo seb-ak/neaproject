@@ -363,7 +363,6 @@ class UiScreen {
             if (e.bottomText && !bottomTextVisible) continue;
 
             if (e.topText || e.bottomText) {
-                console.log(deltaTime)
                 e.time += 0.4 * deltaTime * 60
                 e.borderBrightness = 0.5 + 0.5*Math.sin(e.time)
             }

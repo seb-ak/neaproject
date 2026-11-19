@@ -110,6 +110,8 @@ class Level {
             this.texture = await loadImage(`./levels/${this.levelFolder}/texture.png`);
             this.collision = await loadImage(`./levels/${this.levelFolder}/collision.png`);
 
+            this.doorTexture = (await loadImage(`./textures/other/door.png`)).image;
+
             this.generateLevel();
 
             this.loaded = true;
@@ -120,6 +122,8 @@ class Level {
     }
 
     generateLevel() {
+
+        const testFoundHex = []
 
         const platforms = {}
         const bossPath = {}
@@ -148,22 +152,22 @@ class Level {
                 this.addToChunk(o);
             }
 
-            if (hex === "#ff0000" && parseInt(data) >= 240) {
+            else if (hex === "#ff0000" && parseInt(data) >= 240) {
                 const o = new SpawnPoint(new vec3(x*this.gridSize, y*this.gridSize, 0+this.gridSize), 255-parseInt(data));
                 this.addToChunk(o);
             }
             
-            if (hex === "#00ff00") {
-                const index = 255-parseInt(data)
+            else if (hex === "#0000ff" && parseInt(data) < 20) {
+                const index = parseInt(data)-10
                 bossLocations[index] = new vec3(x*this.gridSize, y*this.gridSize, 0)
             }
             
-            if (hex === "#0000ff") {
+            else if (hex === "#0000ff" && data != "100") {
                 const o = new Enemy(new vec3(x*this.gridSize, y*this.gridSize, 0+this.gridSize), data);
                 this.addToChunk(o);
             }
 
-            if (hex === "#ffff00") {
+            else if (hex === "#ffff00") {
                 const location = new vec3(x*this.gridSize, y*this.gridSize, 0+this.gridSize);
                 if (data == "255") {
                     const o = new Platform([location]);
@@ -176,23 +180,23 @@ class Level {
                 }
             }
 
-            if (hex === "#ff0000" && data=="200") {
+            else if (hex === "#ff0000" && data=="200") {
                 const o = new Spike(new vec3(x*this.gridSize, y*this.gridSize, 0+this.gridSize), this.gridSize);
                 this.addToChunk(o);
             }
 
-            if (hex === "#ff0000" && data=="100") {
+            else if (hex === "#ff0000" && data=="100") {
                 const o = new DeathBarrier(new vec3(x*this.gridSize, y*this.gridSize, 0+this.gridSize), this.gridSize);
                 this.addToChunk(o);
             }
 
-            if (hex === "#ff00ff") {
+            else if (hex === "#ff00ff") {
                 const o = new Portal(new vec3(x*this.gridSize, y*this.gridSize, 0+this.gridSize), data, this.levelID);
                 this.addToChunk(o);
             }
             
             // if (hex === "#00ff96") { // doesnt work for some reason the colour is slightly offff each time
-            if (
+            else if (
                 tile.r <= 3 && 
                 tile.g >= 252 &&
                 tile.b >= 147 && tile.b <= 153
@@ -201,16 +205,20 @@ class Level {
                 this.addToChunk(o);
             }
 
-            if (hex === "#326432") { // door
-                const o = new gameObject(new vec3(x*this.gridSize, y*this.gridSize, 0-this.gridSize));
+            else if (hex === "#0000ff" && data == "100") { // door
+                console.log("door")
+                const o = new gameObject(new vec3(x*this.gridSize, y*this.gridSize, 0));
                 o.size = new vec3(this.gridSize*2, this.gridSize*11, this.gridSize*4);
                 o.collision = true;
                 o.type = "door";
-                o.faces.push(new Quad(o.getFaceVertecies("front"), "textures/door/door.png"));
+                o.faces.push(new Quad(o.getFaceVertecies("front"), this.doorTexture));
+                o.faces.push(new Quad(o.getFaceVertecies("left"), 0.2));
+                o.faces.push(new Quad(o.getFaceVertecies("right"), 0.2));
+                this.addToChunk(o);
             }
 
             // if (hex == "#C86464") { // boss chase path
-            if (
+            else if (
                 tile.r >= 200 && tile.r <= 201 &&
                 tile.g >= 100 && tile.g <= 101 &&
                 tile.b >= 100 && tile.b <= 101
@@ -219,7 +227,24 @@ class Level {
                 const index = data;
                 bossPath[index] = location;
             }
-
+            
+            else if (hex != "#ffffff") {
+                if (!testFoundHex.includes(hex)) {
+                    console.log(hex)
+                    testFoundHex.push(hex)
+                }
+                /*
+                    #01ff00
+                    #fcfcff
+                    #0909ff
+                    #0707ff
+                    #0303ff
+                    #0505ff
+                    #99ffd5
+                    #193f20
+                    #0f2613
+                */
+            }
         }}
 
         // platforms
@@ -451,6 +476,7 @@ class Main {
                 {dark: {r:Math.random()*255, g:Math.random()*255, b:Math.random()*255}, light: {r:Math.random()*255, g:Math.random()*255, b:Math.random()*255}},
                 {dark: {r:99, g:222, b:165}, light: {r:222, g: 103, b:99}},
                 { dark: {r:42, g:12, b:64}, light: {r:118, g: 146, b:249}},
+                { dark: {r:174, g:108, b:25}, light: {r:101, g:62, b:60}},
             ],
         }
         this.loadSettings();
@@ -592,7 +618,7 @@ class Main {
 
             const vel = new vec3(
                 this.player.velocity.x / 6 * (this.player.isDashing? 1.2 : 1),
-                0,//this.player.velocity.y / 30,
+                0 + this.player.inBossFight? 1:0,
                 this.camera.z
             )
 
@@ -604,13 +630,14 @@ class Main {
             .sub(this.camera.location)
             .div(8)
             .mult(this.deltaTime*60)
-    
+
             this.camera.location.x += diff.x
             this.camera.location.y += diff.y
             this.camera.location.z = Math.round((this.camera.location.z + diff.z)*100)/100
             
             this.camera.fov = baseFov + extraVelocity - extraTransition * fovMultiplier
-            
+            if (this.player.inBossFight) this.camera.fov += 20
+
             this.camera.isMoving = !(this.camera.location.z == this.camera.lastZ)
             this.camera.lastZ = this.camera.z
 
@@ -735,4 +762,8 @@ class Main {
 }
 
 let main;
-document.addEventListener("mousedown", (e) => { if (!main) main = new Main(); });
+let i = setInterval(()=>{
+    if (!document.hasFocus()) return
+    main = new Main();
+    clearInterval(i)
+})
