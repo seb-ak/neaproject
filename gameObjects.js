@@ -177,7 +177,6 @@ class physicsObject extends gameObject {
         this.deceleration = new vec3(0.1, 0.1, 0.1);
         this.isOnFloor = false;
         this.baseGravity = 0.5;
-        this.verticalPositionCorrection = 0;
 
         this.doesPlatformVelocity = false;
         this.platformVelocity = new vec3(0, 0, 0);
@@ -265,7 +264,7 @@ class physicsObject extends gameObject {
         }
     }
     doY(velocity, deltaTime, steps, player) {
-        this.location.y += (velocity.y * deltaTime + this.verticalPositionCorrection) / steps;
+        this.location.y += (velocity.y * deltaTime) / steps;
         for (const obj of this.collisionObjects) {
             this.resolveY(obj);
         }
@@ -401,10 +400,10 @@ export class Player extends physicsObject {
         this.isCrouching = false;
         this.isSliding = false;
 
-        this.jumpForce = 11;
+        this.jumpForce = 11.2;
         this.baseGravity = 0.5;
         this.jumpTime = 0;
-        this.maxJumpTime = 170;
+        this.maxJumpTime = 200;
 
         this.cyoteTime = 0;
         this.maxCyoteTime = 200;
@@ -454,6 +453,8 @@ export class Player extends physicsObject {
 
         this.startSlideSpeed = this.maxVel.x - 0.4
 
+        this.inBossFight = false;
+
         this.unlocks = {
             doubleJump: false,
             dash: false,
@@ -469,6 +470,7 @@ export class Player extends physicsObject {
             key3: false,
             key4: false,
         }
+        this.keysNeeded = 0;
 
         this.topTextTime = 0
         this.topText = "Hold jump to jump higher.  Tap for less height.  S to crouch"
@@ -484,10 +486,19 @@ export class Player extends physicsObject {
         this.startingSpawnpoint = 11
         if (this.startingSpawnpoint > 1) this.unlocks.doubleJump = true
         if (this.startingSpawnpoint > 2) this.unlocks.dash = true
-        if (this.startingSpawnpoint > 4) this.unlocks.slide = true
+        if (this.startingSpawnpoint > 3) this.unlocks.slide = true
         
     }
     
+    countKeys() {
+        let count = 0
+        if (this.unlocks.key1) count++
+        if (this.unlocks.key2) count++
+        if (this.unlocks.key3) count++
+        if (this.unlocks.key4) count++
+        return count
+    }
+
     spawn(level) {
 
         this.health = this.maxHealth;
@@ -503,6 +514,8 @@ export class Player extends physicsObject {
         this.justJumped = false;
         this.isDashing = false;
         this.dashTime = 0;
+
+        this.inBossFight = false;
 
         this.invincibleTime = this.maxInvincibleTime;
 
@@ -756,9 +769,7 @@ export class Player extends physicsObject {
             if (logs) logError("gravity: normal")
         }
 
-        const gravityDelta = gravity * deltaTime * 144
-        this.verticalPositionCorrection = gravityDelta * deltaTime / 2
-        this.velocity.y -= gravityDelta
+        this.velocity.y -= gravity * deltaTime * 144
 
         if (logs) logError(`gravity:${gravity.toFixed(3)}`)
 
@@ -863,9 +874,9 @@ export class Player extends physicsObject {
         // console.log(`unlocked ${item}`);
 
         if (item == "door") {
-            this.topTextTime = 0;
-            if (this.unlocks.key1 && this.unlocks.key2 && this.unlocks.key3 && this.unlocks.key4) this.topText = "door unlocked";
-            else this.topText = "need 4 keys to open the door";
+            this.topTextTime = this.topTextMaxTime - 8;
+            if (this.countKeys() >= this.keysNeeded) this.topText = "door unlocked";
+            else this.topText = `need ${Math.max(0, this.keysNeeded-this.countKeys())} more keys to unlock the door`;
             return
         }
 
@@ -873,13 +884,13 @@ export class Player extends physicsObject {
             doubleJump: "Hold UP and tap JUMP in the air",
             dash: "Hold LEFT or RIGHT and tap JUMP in the air",
             slide: "Hold crouch whilst running to slide, also jump when sliding",
-            slideAttack: "",
-            slamAttack: "",
+            // slideAttack: "",
+            // slamAttack: "",
             hat: "Wow nice hat",
-            key1: "key 1 found",
-            key2: "key 2 found",
-            key3: "key 3 found",
-            key4: "key 4 found",
+            // key1: "key 1 found",
+            // key2: "key 2 found",
+            // key3: "key 3 found",
+            // key4: "key 4 found",
         }
 
         if (Object.keys(itemText).includes(item)) {
@@ -887,8 +898,14 @@ export class Player extends physicsObject {
             this.topText = itemText[item];;
         }
         
-        this.bottomTextTime = 0;
-        this.bottomText = `unlocked ${item}`;
+        if (item.substring(0,3) == "key") {
+            this.bottomTextTime = 0;
+            this.bottomText = `picked up a key`;
+        } else {
+            this.bottomTextTime = 0;
+            this.bottomText = `unlocked ${item}`;
+        }
+
     }
 
     tick(deltaTime, level) {
@@ -913,7 +930,6 @@ export class Player extends physicsObject {
             if (this.deathTimer != -1) { this.updateFaces(false); return; }
 
         // movement
-            this.verticalPositionCorrection = 0;
             this.collisionObjects = this.getCollisionObjects(level);
 
             if (this.teleportDirection != 0) this.portalTeleport(deltaTime)
@@ -1144,9 +1160,11 @@ export class BossChase extends physicsObject {
             this.speed = 0;
             this.moving = false;
             this.changeSpeedTime = 0;
+            return
         }
 
         const distance = level.player.location.sub(this.location).length()
+        // console.log(distance)
         
         if (logs) logError(`${this.location.x.toFixed(2)} ${this.location.y.toFixed(2)} ${this.location.z.toFixed(2)},  ${this.speed}`)
 
@@ -1155,7 +1173,7 @@ export class BossChase extends physicsObject {
                 this.moving = true;
                 this.changeSpeedTime = 0.4;
                 this.speed = 0;
-                console.log("moving")
+                // console.log("moving")
             }
             else if (this.moving && this.speed == 0) this.speed = 4;
             // else if (this.moving && distance < 15) this.speed = 6;
@@ -1170,7 +1188,7 @@ export class BossChase extends physicsObject {
             if (this.speed != 0) this.changeSpeedTime = 1 + Math.random();
         }
         if (this.moving) this.changeSpeedTime -= deltaTime;
-        console.log(this.speed)
+        // console.log(this.speed)
 
         if (this.targetPositionIndex < this.positions.length) {
             const target = this.positions[this.targetPositionIndex]
@@ -1286,7 +1304,7 @@ export class Platform extends physicsObject {
 export class Interactable extends gameObject {
 
     constructor(location, data, levelID) {
-        location.z -= 0.5
+        // location.z -= 0.5
         super(location)
 
         this.id = data
@@ -1307,7 +1325,18 @@ export class Interactable extends gameObject {
     }
 
     async load() {
-        // this.faces[0].brightness = await loadImage(`./textures/interactable/${this.id}.png`).image;
+        if (this.id == "120") {
+            this.faces[0].brightness = (await loadImage(`./textures/other/button.png`)).image;
+        } else if (
+            this.id == "110"||
+            this.id == "111"||
+            this.id == "112"||
+            this.id == "113"
+        ) {
+            this.faces[0].brightness = (await loadImage(`./textures/other/key.png`)).image;
+        } else {
+            this.faces[0].brightness = (await loadImage(`./textures/other/unlock.png`)).image;
+        }
         this.loaded = true
     }
 
@@ -1332,10 +1361,13 @@ export class Interactable extends gameObject {
 
             this.interact(player);
             
+            if (this.id == "120" && player.countKeys() < player.keysNeeded) return;
+
             player.selectHoldTime = -1;
             this.collected = true;
 
-            this.faces[0].brightness = 0.5
+            this.faces = []
+            // this.faces[0].brightness = 0.5
 
         }
 
@@ -1361,21 +1393,21 @@ export class Interactable extends gameObject {
 
     openDoor(player) {
         
-        const keys = [].filter(o => o).length
-        if (
-            !player.unlocks.key1 ||
-            !player.unlocks.key2 ||
-            !player.unlocks.key3 ||
-            !player.unlocks.key4
-        ) {
-            console.log(`need ${4-keys} more keys to unlock`)
+        const keys = player.countKeys()
+        if (keys < player.keysNeeded) {
+            console.log(`need ${Math.max(0, player.keysNeeded-keys)} more keys to unlock`)
             return;
         }
 
         const objects = this.level.getChunksData().object;
         const door = objects.filter(o => o.type == "door")[0];
 
-        door.location.z -= door.size.z;
+        door.location.z += door.size.z;
+        
+        door.faces[0].vertices3d = door.getFaceVertecies("front");
+        door.faces[1].vertices3d = door.getFaceVertecies("left");
+        door.faces[2].vertices3d = door.getFaceVertecies("right");
+
         door.collision = false;
     }
 
@@ -1392,8 +1424,9 @@ export class Portal extends gameObject {
 
         this.id = data
         this.levelID = levelID
+        // console.log("portal id", this.id)
 
-        this.type == "portal"
+        this.type = "portal"
         this.ticking = true
 
         this.brightness = 0.8;
@@ -1430,9 +1463,11 @@ export class Portal extends gameObject {
 
     findOtherPortal(level) {
 
-        const portal = level.getChunksData().object.filter(o => (o.type == "portal" && o.id == this.id) )
+        const portal = level.getChunksData().object.find(o => (
+            o !== this && o.type === "portal" && o.id === this.id
+        ));
 
-        return portal
+        return portal?.location
 
     }
 
@@ -1465,13 +1500,18 @@ export class Portal extends gameObject {
 
             const {levelID, location} = this.teleportLocation()
 
-            player.location = location.copy()
+            player.location.x = location.x
+            player.location.y = location.y
             player.levelID = levelID
-            player.teleportDirection = player.teleportTransition==0 ? 1:-1
+            if (levelID != this.levelID) player.teleportDirection = player.teleportTransition==0 ? 1:-1
             
             player.velocity = new vec3()
 
             player.selectHoldTime = -1
+
+            if (this.id == "250") {
+                player.inBossFight = true;
+            }
 
         }
 
@@ -1531,6 +1571,7 @@ export class DeathBarrier extends physicsObject {
 export class Boss extends physicsObject {
     
     constructor(locations) {
+        console.log("boss spawned and is working")
         // console.log(locations)
         super(locations[1].add(locations[2]).div(2))
 
@@ -1539,68 +1580,151 @@ export class Boss extends physicsObject {
 
         this.left = locations[0];
         this.centerLeft = locations[1];
-        this.center = this.location;
+        this.center = new vec3(
+            (locations[1].x + locations[2].x) / 2,
+            locations[1].y+2,
+            locations[1].z
+        )
         this.centerRight = locations[2];
         this.right = locations[3];
 
-        this.objects = []
+        const originOffset = new vec3(0,6,1);
 
         this.leftHand = new physicsObject(this.left);
-        this.leftHand.size = new vec3(1,1,1);
-        this.leftHand.origin = this.leftHand.location.sub(this.leftHand.size.div(2));
-        
-        this.rightHand = new physicsObject(this.center);
-        this.rightHand.size = new vec3(1,1,1);
-        this.rightHand.origin = this.rightHand.location.sub(this.rightHand.size.div(2));
-        
-        this.body = new physicsObject(this.right);
-        this.body.size = new vec3(1,1,1);
-        this.body.origin = this.body.location.sub(this.body.size.div(2));
+        this.leftHand.size = new vec3(3,2.5,2);
+        this.leftHand.origin = this.leftHand.location.sub(this.leftHand.size.div(2)).add(originOffset);
+        this.leftHand.collision = true;
 
-        this.phase = "idle"
-        this.state = ""
-        this.attackTime = 0
+        this.rightHand = new physicsObject(this.right);
+        this.rightHand.size = new vec3(3,2.5,2);
+        this.rightHand.origin = this.rightHand.location.sub(this.rightHand.size.div(2)).add(originOffset);
+        this.rightHand.collision = true;
 
-        this.attackCooldown = 3
+        this.weakpoint = new physicsObject(this.center);
+        this.weakpoint.size = new vec3(1,0.5,2);
+        this.weakpoint.origin = this.weakpoint.location.sub(this.weakpoint.size.div(2)).add(originOffset).add(new vec3(0,2.5,0));
+        this.weakpoint.collision = true;
 
-        this.attacks = ["leftSwipe", "rightSwipe", "leftPunch", "rightPunch"]
-        this.activeAttack = "none"
+        // this.body = new physicsObject(this.center);
+        // this.body.size = new vec3(5,5,2);
+        // this.body.origin = this.body.location.sub(this.body.size.div(2)).add(originOffset);
+        // this.body.location = this.body.origin
+        // this.body.collision = true;
+
+        this.doesPlatformVelocity = true
+        this.location = this.center.copy()
+        this.size = new vec3(5,5,2);
+        this.origin = this.location.sub(this.size.div(2)).add(originOffset);
+
+        this.collision = true;
+
+        this.childObjects = []
+        this.childObjects.push(this.leftHand)
+        this.childObjects.push(this.rightHand)
+        this.childObjects.push(this.weakpoint)
+        // this.childObjects.push(this.body)
+
+
+        this.attacks = ["leftSwipe", "rightSwipe", "leftPunch", "rightPunch", "leftSweep", "rightSweep"]
+
 
         this.attackData = {
             leftSwipe: {
                 time: 2,
                 object: this.leftHand,
-                waypoints: [new vec3(0,0,0), new vec3(-1,0,0), new vec3(-2,-1,0), new vec3(10,-1,0)],
+                waypoints: [new vec3(0,0,0), new vec3(-1,0,0), new vec3(-2,-3,0), new vec3(10,-3,0)],
             },
             rightSwipe: {
                 time: 2,
                 object: this.rightHand,
-                waypoints: [new vec3(0,0,0), new vec3(1,0,0), new vec3(2,-1,0), new vec3(-10,-1,0)],
+                waypoints: [new vec3(0,0,0), new vec3(1,0,0), new vec3(2,-3,0), new vec3(-10,-3,0)],
             },
+
+            leftSweep: {
+                time: 2,
+                object: this.leftHand,
+                waypoints: [new vec3(0,0,0), new vec3(0,-1.5,0), new vec3(5,-1.5,0), new vec3(10,-1.5,0)],
+            },
+            rightSweep: {
+                time: 2,
+                object: this.rightHand,
+                waypoints: [new vec3(0,0,0), new vec3(0,-1.5,0), new vec3(-5,-1.5,0), new vec3(-10,-1.5,0)],
+            },
+
             leftPunch: {
                 time: 2,
                 object: this.leftHand,
-                waypoints: [new vec3(0,0,0), new vec3(0,0.5,0), new vec3(0,1,0), new vec3(0,-1,0), new vec3(0,0,0)],
-                
+                waypoints: [new vec3(0,0,0), new vec3(0,0.5,0), new vec3(0,1,0), new vec3(0,-3,0), new vec3(0,0,0)],
             },
             rightPunch: {
                 time: 2,
                 object: this.rightHand,
-                waypoints: [new vec3(0,0,0), new vec3(0,0.5,0), new vec3(0,1,0), new vec3(0,-1,0), new vec3(0,0,0)],
-
+                waypoints: [new vec3(0,0,0), new vec3(0,0.5,0), new vec3(0,1,0), new vec3(0,-3,0), new vec3(0,0,0)],
             },
         }
 
-        this.health = 9;
 
         this.faces = [
-            new Quad(this.leftHand.getFaceVertecies("front"),   1),
-            new Quad(this.body.getFaceVertecies("front"),       1),
-            new Quad(this.rightHand.getFaceVertecies("front"),  1),
+            new Quad(this.leftHand.getFaceVertecies("front"),   0.7),
+            new Quad(this.leftHand.getFaceVertecies("up"),      0.7),
+            new Quad(this.leftHand.getFaceVertecies("left"),    0.7),
+            new Quad(this.leftHand.getFaceVertecies("right"),   0.7),
+            new Quad(this.leftHand.getFaceVertecies("down"),    0.7),
+
+            // new Quad(this.body.getFaceVertecies("front"),       1),
+            // new Quad(this.body.getFaceVertecies("up"),          1),
+            // new Quad(this.body.getFaceVertecies("left"),        1),
+            // new Quad(this.body.getFaceVertecies("right"),       1),
+            // new Quad(this.body.getFaceVertecies("down"),        1),
+
+            new Quad(this.getFaceVertecies("front"),       0.9),
+            new Quad(this.getFaceVertecies("up"),          0.9),
+            new Quad(this.getFaceVertecies("left"),        0.9),
+            new Quad(this.getFaceVertecies("right"),       0.9),
+            new Quad(this.getFaceVertecies("down"),        0.9),
+
+            new Quad(this.rightHand.getFaceVertecies("front"),  0.7),
+            new Quad(this.rightHand.getFaceVertecies("up"),     0.7),
+            new Quad(this.rightHand.getFaceVertecies("left"),   0.7),
+            new Quad(this.rightHand.getFaceVertecies("right"),  0.7),
+            new Quad(this.rightHand.getFaceVertecies("down"),   0.7),
+            
+            new Quad(this.weakpoint.getFaceVertecies("front"),  1),
+            new Quad(this.weakpoint.getFaceVertecies("up"),     1),
+            new Quad(this.weakpoint.getFaceVertecies("left"),   1),
+            new Quad(this.weakpoint.getFaceVertecies("right"),  1),
+
         ]
 
-        this.updateFaces();
+        this.reset()
 
+        this.attacksBeforeBodyMove = 2
+    }
+
+    reset() {
+        this.health = 3;
+        this.attackNumber = 0;
+
+        this.activeAttack = "none";
+        this.maxAttackTime = undefined;
+        this.waypoints = undefined;
+        this.attackObject = undefined;
+
+        this.phase = "idle";
+        this.state = "";
+
+        this.attackTime = 0;
+        this.attackCooldown = 2;
+
+        this.location = new vec3();
+        this.weakpoint.location = new vec3();
+        this.rightHand.location = new vec3();
+        this.leftHand.location = new vec3();
+
+        this.introTime = 0;
+
+        this.weakpointActive = false;
+        this.updateFaces();
     }
 
     playerDistanceTo(location) {
@@ -1617,21 +1741,42 @@ export class Boss extends physicsObject {
         this.maxAttackTime = this.attackData[attack].time;
         this.attackTime = this.attackData[attack].time;
         this.waypoints = this.attackData[attack].waypoints;
-        this.attackObject = this.attackData[attack].object
+        this.attackObject = this.attackData[attack].object;
+        this.attackOrigin = this.attackObject.origin.copy();
+        this.attackNumber++;
     }
 
-    doAttack() {
+    doAttack(deltaTime) {
         if (this.waypoints) {
-            const i = (this.attackTime/this.maxAttackTime) * this.waypoints.length;
-            const wayThroughI = (this.attackTime/this.maxAttackTime) * this.waypoints.length;
-            const start = this.waypoints[i]
-            const direction = this.waypoints[i] + this.waypoints[(i+1) % this.waypoints.length]
+            const scale = 2;
 
-            this.attackObject.location = this.attackObject.location.add(start.add(direction.mult(wayThroughI)))
-        }
-        if (this.activeAttack == "rightSwipe") {
+            const progress = (1 - this.attackTime / this.maxAttackTime) % 1;
+            const segmentPosition = progress * this.waypoints.length;
+            const segmentIndex = Math.floor(segmentPosition);
+            const segmentProgress = segmentPosition - segmentIndex;
+            const start = this.waypoints[segmentIndex].mult(scale);
+            const end = this.waypoints[(segmentIndex + 1) % this.waypoints.length].mult(scale);
+            const offset = start.add(end.sub(start).mult(segmentProgress));
 
+            this.attackObject.location = this.attackOrigin.add(offset);
         }
+        // else if (this.activeAttack == "body") {
+        //     const speed = 6 * deltaTime
+
+        //     if (this.attackTime > this.maxAttackTime*4/5) { // move down
+        //         this.velocity.y = -speed;
+        //         this.pushAwayFromBody = false;
+        //         this.weakpointActive = true
+        //     }
+        //     else if (this.attackTime < this.maxAttackTime*1/5) { // move up
+        //         this.velocity.y = speed;
+        //         this.pushAwayFromBody = true;
+        //     }
+        //     else this.velocity.y = 0
+        
+        //     this.location = this.location.add(this.velocity)
+        //     this.weakpoint.location = this.weakpoint.location.add(this.velocity)
+        // }
     }
 
     tick(deltaTime, level) {
@@ -1639,26 +1784,79 @@ export class Boss extends physicsObject {
         this.level = level
         const player = level.player
 
-        console.log(this.leftHand, this.rightHand, this.body)
+        if (!player.inBossFight && this.phase != "idle") {
+            this.reset();
+        }
+
+        // console.log(this.phase, this.activeAttack, this.attackNumber, this.attackTime, this.health, this.weakpointActive)
 
         if (this.phase == "idle") {
 
-            if (this.playerDistanceTo(this.center < 20)) {
-                this.phase = "first"
+            if (player.inBossFight && player.isOnFloor) {
+                this.phase = "intro"
             }
 
-        } else if (this.phase == "first") {
+        } else if (this.phase == "intro") {
 
-            if (this.health <= 3) {
-                this.phase = "second"
+            this.introTime += deltaTime
+            const maxIntroTime = 2
+
+            if (this.introTime > maxIntroTime) {
+                this.startAttack("leftPunch")
+                this.phase = "firstPunch"
+            }
+
+            const distance = 30
+            const x = distance - distance * (this.introTime / maxIntroTime)
+
+            this.leftHand.location = this.leftHand.origin.sub(new vec3(x,0,0))
+            this.rightHand.location = this.rightHand.origin.sub(new vec3(x,0,0))
+            this.location = this.origin.sub(new vec3(x,0,0))
+            this.weakpoint.location = this.weakpoint.origin.sub(new vec3(x,0,0))
+
+        } else if (this.phase == "firstPunch") {
+
+            if (this.attackTime < 0) {
+                this.activeAttack = "none";
+                this.maxAttackTime = undefined
+                this.waypoints = undefined
+                this.attackObject = undefined
             }
 
             if (this.attackTime < -this.attackCooldown) {
-                const attack = this.chooseRandom(this.attacks);
-                this.startAttack(attack)
+                this.startAttack("rightPunch")
+                this.phase = "fight"
             }
 
-        } else if (this.phase == "second") {
+
+        } else if (this.phase == "fight") {
+
+            if (this.health <= 0) this.phase = "dead"
+
+            if (this.attackTime < 0) {
+                this.activeAttack = "none";
+                this.maxAttackTime = undefined
+                this.waypoints = undefined
+                this.attackObject = undefined
+                this.location = this.origin.copy()
+                this.weakpoint.location = this.weakpoint.origin.copy()
+                this.weakpointActive = false;
+            }
+
+            if (this.attackTime < -this.attackCooldown) {
+
+                if (this.attackNumber % this.attacksBeforeBodyMove == 0) {
+                    this.activeAttack = "body"
+                    this.maxAttackTime = 7
+                    this.attackTime = 7
+                    this.attackNumber++;
+                } else {
+                    const attack = this.chooseRandom(this.attacks);
+                    this.startAttack(attack)
+                }
+            }
+
+        } else if (this.phase == "dead") {
 
             if (this.attackTime < 0) {
 
@@ -1666,11 +1864,65 @@ export class Boss extends physicsObject {
 
         }
 
-        this.attackTime -= deltaTime * 1000
+        let speed = 1
+        if (this.health == 2) {
+            speed = 1.3
+        } if (this.health == 1) {
+            speed = 1.8
+        }
 
-        for (const obj of this.objects) {
+        this.attackTime -= deltaTime * speed
+
+        if (this.phase != "intro") {
+            this.doAttack(deltaTime);
+        }
+
+        for (const obj of this.childObjects) {
    
+            if (!obj.isCollidingWith(player)) continue;
 
+            if (this.weakpointActive && obj == this.weakpoint) {
+                this.health --;
+                this.weakpointActive = false;
+                if (this.attackTime > this.maxAttackTime*1/5) {
+                    this.attackTime = this.maxAttackTime*1/5;
+                }
+                player.velocity.y = 30;
+                const left = player.location.x < this.location.x;
+                player.velocity.x += 5 * left? -1:1;
+                return;
+            }
+
+            if (obj != this.attackObject) continue;
+
+            if (this.activeAttack == "leftPunch" || this.activeAttack == "rightPunch") {
+                player.damage(100);
+            }
+
+            else if (this.activeAttack == "leftSwipe") {
+                player.velocity.x += 15
+                player.velocity.y += 1
+            }
+            else if (this.activeAttack == "rightSwipe") {
+                player.velocity.x -= 15
+                player.velocity.y += 1
+            }
+
+            else if (this.activeAttack == "leftSweep") {
+                player.velocity.x += 10
+                player.velocity.y += 1
+            }
+            else if (this.activeAttack == "rightSweep") {
+                player.velocity.x -= 10
+                player.velocity.y += 1
+            }
+        }
+
+        const colliding = this.isCollidingWith(player) || (player.touchingPhysicsObjects && player.touchingPhysicsObjects.includes(this))
+        if (!this.weakpointActive && colliding) {
+            const dir = player.location.x < this.location.x? -1:1
+            player.velocity.x += 10 * dir
+            player.velocity.y += 10
         }
 
         this.updateFaces();
@@ -1678,10 +1930,40 @@ export class Boss extends physicsObject {
     }
 
     updateFaces() {
+        this.faces[0].vertices3d = this.leftHand.getFaceVertecies("front")
+        this.faces[1].vertices3d = this.leftHand.getFaceVertecies("up")
+        this.faces[2].vertices3d = this.leftHand.getFaceVertecies("left")
+        this.faces[3].vertices3d = this.leftHand.getFaceVertecies("right")
+        this.faces[4].vertices3d = this.leftHand.getFaceVertecies("down")
 
-        this.faces[0].vertices3d = this.leftHand.getFaceVertecies("front");
-        this.faces[1].vertices3d = this.body.getFaceVertecies("front");
-        this.faces[2].vertices3d = this.rightHand.getFaceVertecies("front");
+        // this.faces[5].vertices3d = this.body.getFaceVertecies("front")
+        // this.faces[6].vertices3d = this.body.getFaceVertecies("up")
+        // this.faces[7].vertices3d = this.body.getFaceVertecies("left")
+        // this.faces[8].vertices3d = this.body.getFaceVertecies("right")
+        // this.faces[9].vertices3d = this.body.getFaceVertecies("down")
 
+        this.faces[5].vertices3d = this.getFaceVertecies("front")
+        this.faces[6].vertices3d = this.getFaceVertecies("up")
+        this.faces[7].vertices3d = this.getFaceVertecies("left")
+        this.faces[8].vertices3d = this.getFaceVertecies("right")
+        this.faces[9].vertices3d = this.getFaceVertecies("down")
+
+        this.faces[10].vertices3d = this.rightHand.getFaceVertecies("front")
+        this.faces[11].vertices3d = this.rightHand.getFaceVertecies("up")
+        this.faces[12].vertices3d = this.rightHand.getFaceVertecies("left")
+        this.faces[13].vertices3d = this.rightHand.getFaceVertecies("right")
+        this.faces[14].vertices3d = this.rightHand.getFaceVertecies("down")
+
+        this.faces[15].vertices3d = this.weakpoint.getFaceVertecies("front")
+        this.faces[16].vertices3d = this.weakpoint.getFaceVertecies("up")
+        this.faces[17].vertices3d = this.weakpoint.getFaceVertecies("left")
+        this.faces[18].vertices3d = this.weakpoint.getFaceVertecies("right")
+
+        const brightness = this.weakpointActive ? Math.sin(this.attackTime*8)*0.5 + 0.5 : 0.8
+
+        this.faces[15].brightness = brightness
+        this.faces[16].brightness = brightness
+        this.faces[17].brightness = brightness
+        this.faces[18].brightness = brightness
     }
 }
