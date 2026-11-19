@@ -219,9 +219,9 @@ class Level {
 
             // if (hex == "#C86464") { // boss chase path
             else if (
-                tile.r >= 200 && tile.r <= 201 &&
-                tile.g >= 100 && tile.g <= 101 &&
-                tile.b >= 100 && tile.b <= 101
+                tile.r >= 198 && tile.r <= 202 &&
+                tile.g >= 98 && tile.g <= 102 &&
+                tile.b >= 98 && tile.b <= 102
             ) {
                 const location = new vec3(x*this.gridSize, y*this.gridSize, 0+this.gridSize);
                 const index = data;
@@ -461,24 +461,21 @@ class Main {
     constructor() {
         this.loaded = false;
 
+        this.colours = [
+            { dark: {r:5, g:28, b:12}, light: {r:51, g:255, b:102}},
+            { dark: {r:43, g:27, b:61}, light: {r:246, g:240, b:207}},
+            { dark: {r:0, g:0, b:0}, light: {r:255, g:255, b:255}},
+            { dark: {r:42, g:12, b:64}, light: {r:118, g: 146, b:249}},
+            { dark: {r:174, g:108, b:25}, light: {r:101, g:62, b:60}},
+            { dark: {r:99, g:222, b:165}, light: {r:222, g: 103, b:99}},
+        ]
+
         this.settings = {
             dithering: true,
             colourScheme: 0,
             performance: false,
-            colours: [
-                { dark: {r:5, g:28, b:12}, light: {r:51, g:255, b:102}}, // #051c0c (Dark Forest Green) and #33ff66 (Terminal Green)
-                { dark: {r:43, g:27, b:61}, light: {r:246, g:240, b:207}}, // #2b1b3d (Plum Purple) and #f6f0cf (Butter Yellow)
-                {dark: {r:18, g:12, b:0}, light: {r:255, g:176, b:0}}, // #120c00 (Deep Brown-Black) and #ffb000 (Classic Amber)
-                {dark: {r:15, g:26, b:44}, light: {r:238, g:242, b:247}}, // #0f1a2c (Dark Navy) and #eef2f7 (Ice White)
-                {dark: {r:36, g:89, b:92}, light: {r:240, g:125, b:234}},
-                {dark: {r:74, g:68, b:94}, light: {r:180, g:76, b:67}},
-                { dark: {r:0, g:0, b:0}, light: {r:255, g:255, b:255}},
-                {dark: {r:Math.random()*255, g:Math.random()*255, b:Math.random()*255}, light: {r:Math.random()*255, g:Math.random()*255, b:Math.random()*255}},
-                {dark: {r:99, g:222, b:165}, light: {r:222, g: 103, b:99}},
-                { dark: {r:42, g:12, b:64}, light: {r:118, g: 146, b:249}},
-                { dark: {r:174, g:108, b:25}, light: {r:101, g:62, b:60}},
-            ],
         }
+
         this.loadSettings();
 
         this.deltaTime = 1
@@ -528,7 +525,18 @@ class Main {
 
     loadSettings() {
         const settings = localStorage.getItem('settings');
-        if (settings) this.settings = JSON.parse(settings);
+        if (settings) {
+            const savedSettings = JSON.parse(settings);
+            // if (Array.isArray(savedSettings.colours) && savedSettings.colours.length === this.settings.colours.length) {
+            //     this.settings.colours = savedSettings.colours;
+            // }
+            // delete savedSettings.colours;
+            this.settings = { ...this.settings, ...savedSettings };
+        }
+
+        if (!Number.isInteger(this.settings.colourScheme) || this.settings.colourScheme < 0 || this.settings.colourScheme >= this.settings.colours.length) {
+            this.settings.colourScheme = 0;
+        }
     }
 
     async loadTextures() {
@@ -580,6 +588,10 @@ class Main {
 
         if (this.player.initialSpawn) {
             this.player.spawn(this.level[this.player.levelID]);
+        }
+
+        if (this.player.killedBoss && (this.ui.activeScreen == this.ui.gameScreen || this.ui.activeScreen == this.ui.deathScreen)) {
+            this.ui.activeScreen = this.ui.endScreen
         }
 
         const paused = !(
@@ -667,7 +679,7 @@ class Main {
 
     draw() {
         const colour = this.settings.dithering ?
-            {dark:{r:0,g:0,b:0},light:{r:255,g:255,b:255}} : this.settings.colours[this.settings.colourScheme]
+            {dark:{r:0,g:0,b:0},light:{r:255,g:255,b:255}} : this.settings.colours[this.settings.colourScheme];
 
         this.ctx.fillStyle = `rgb(${colour.dark.r}, ${colour.dark.g}, ${colour.dark.b})`
         this.ctx.fillRect(0, 0, this.screen.width, this.screen.height);
@@ -706,7 +718,7 @@ class Main {
 
     dither() {
         
-        const colour = this.settings.colours[this.settings.colourScheme];
+        const colour = this.colours[this.settings.colourScheme];
 
         const width = this.screen.width
         const height = this.screen.height

@@ -9,7 +9,7 @@ export class gameObject {
 
         this.faces = []
     }
-    
+
     getPoint() {
         const center = this.location.add(new vec3(this.size.x/2, this.size.y/2, 0));
         return {
@@ -190,6 +190,8 @@ class physicsObject extends gameObject {
     }
 
     damage(amount, type="emeny") {
+
+        if (this.killedBoss) return;
         
         if (this.invincibleTime <= 0) {
             this.health -= amount
@@ -351,9 +353,6 @@ class physicsObject extends gameObject {
 }
 
 
-// cant slide while dashing
-// dash has less force when on floor
-// attacks are ground slam and slide kick
 export class Player extends physicsObject {
     constructor(location) {
         super(location)
@@ -470,10 +469,10 @@ export class Player extends physicsObject {
             key3: false,
             key4: false,
         }
-        this.keysNeeded = 0;
+        this.keysNeeded = 2;
 
-        this.topTextTime = 0
-        this.topText = "Hold jump to jump higher.  Tap for less height.  S to crouch"
+        this.topTextTime = -1
+        this.topText = ""
         this.topTextMaxTime = 30
 
         this.bottomTextTime = -1
@@ -482,8 +481,17 @@ export class Player extends physicsObject {
 
         this.startingSpawnpoint = 0
 
-        // test other parts of map
-        this.startingSpawnpoint = 11
+        const urlParams = new URLSearchParams(window.location.search);
+        const spawnParam = urlParams.get('spawn');
+        if (spawnParam && !isNaN(parseInt(spawnParam))) {
+            this.startingSpawnpoint = parseInt(spawnParam)
+        }
+
+        if (this.startingSpawnpoint == 0) {
+            this.topTextTime = 0
+            this.topText = "Hold jump to jump higher.  Tap for less height.  S to crouch"
+            this.topTextMaxTime = 30
+        }
         if (this.startingSpawnpoint > 1) this.unlocks.doubleJump = true
         if (this.startingSpawnpoint > 2) this.unlocks.dash = true
         if (this.startingSpawnpoint > 3) this.unlocks.slide = true
@@ -496,6 +504,7 @@ export class Player extends physicsObject {
         if (this.unlocks.key2) count++
         if (this.unlocks.key3) count++
         if (this.unlocks.key4) count++
+        console.log(`keys: ${count}`)
         return count
     }
 
@@ -976,7 +985,6 @@ export class Player extends physicsObject {
 
 }
 
-// one thats a goomba that jumps when you try to jump over it
 export class Enemy extends physicsObject {
 
     constructor(location, data) {
@@ -1023,7 +1031,15 @@ export class Enemy extends physicsObject {
         }
 
         this.setType(data)
+
+        this.load();
     }
+
+    async load() {
+        this.faces[0].brightness = (await loadImage(`./textures/enemies/enemy1.png`)).image;
+        this.loaded = true
+    }
+
 
     setType(data) {
 
@@ -1128,13 +1144,19 @@ export class BossChase extends physicsObject {
         this.speed = 0;
         this.changeSpeedTime = 0;
 
-        this.brightness = 0.7;
+        this.brightness = 0.9;
         this.faces.push(new Quad(this.getFaceVertecies("front"), this.brightness))
 
-        this.faces.push(new Quad(this.getFaceVertecies("left"), this.brightness))
-        this.faces.push(new Quad(this.getFaceVertecies("right"), this.brightness))
         this.faces.push(new Quad(this.getFaceVertecies("up"), this.brightness))
         this.faces.push(new Quad(this.getFaceVertecies("down"), this.brightness))
+
+        this.faces.push(new Quad(this.getFaceVertecies("right"), this.brightness))
+        this.faces.push(new Quad(this.getFaceVertecies("right"), 0.28))
+        this.faces.push(new Quad(this.getFaceVertecies("right"), this.brightness))
+
+        this.faces.push(new Quad(this.getFaceVertecies("left"), this.brightness))
+        this.faces.push(new Quad(this.getFaceVertecies("left"), 0.28))
+        this.faces.push(new Quad(this.getFaceVertecies("left"), this.brightness))
 
         for (const f of this.faces) {
             f.doCulling = false;
@@ -1149,6 +1171,13 @@ export class BossChase extends physicsObject {
         this.ignoreChunks = true;
 
         this.moving = false;
+
+        this.load();
+    }
+
+    async load() {
+        this.faces[0].brightness = (await loadImage(`./textures/enemies/boss/chase.png`)).image;
+        this.loaded = true
     }
 
     tick(deltaTime, level, logs=false) {
@@ -1212,11 +1241,38 @@ export class BossChase extends physicsObject {
     }
 
     updateFaces() {
+        const top = 5.72
+        const bottom = 0.65
+
         this.faces[0].vertices3d = this.getFaceVertecies("front");
-        this.faces[1].vertices3d = this.getFaceVertecies("left");
-        this.faces[2].vertices3d = this.getFaceVertecies("right");
-        this.faces[3].vertices3d = this.getFaceVertecies("up");
-        this.faces[4].vertices3d = this.getFaceVertecies("down");
+        this.faces[1].vertices3d = this.getFaceVertecies("down");
+        this.faces[2].vertices3d = this.getFaceVertecies("up");
+
+        this.faces[3].vertices3d = this.getFaceVertecies("right");
+        this.faces[3].vertices3d[2].y += this.size.y - top
+        this.faces[3].vertices3d[3].y += this.size.y - top
+        this.faces[4].vertices3d = this.getFaceVertecies("right");
+        this.faces[4].vertices3d[0].y -= top
+        this.faces[4].vertices3d[1].y -= top
+        this.faces[4].vertices3d[2].y += bottom
+        this.faces[4].vertices3d[3].y += bottom
+        this.faces[5].vertices3d = this.getFaceVertecies("right");
+        this.faces[5].vertices3d[0].y += this.size.y - bottom
+        this.faces[5].vertices3d[1].y += this.size.y - bottom
+        
+
+        this.faces[6].vertices3d = this.getFaceVertecies("left");
+        this.faces[6].vertices3d[2].y += this.size.y - top
+        this.faces[6].vertices3d[3].y += this.size.y - top
+        this.faces[7].vertices3d = this.getFaceVertecies("left");
+        this.faces[7].vertices3d[0].y -= top
+        this.faces[7].vertices3d[1].y -= top
+        this.faces[7].vertices3d[2].y += bottom
+        this.faces[7].vertices3d[3].y += bottom
+        this.faces[8].vertices3d = this.getFaceVertecies("left");
+        this.faces[8].vertices3d[0].y += this.size.y - bottom
+        this.faces[8].vertices3d[1].y += this.size.y - bottom
+        
     }
 }
 
@@ -1600,21 +1656,21 @@ export class Boss extends physicsObject {
         this.rightHand.origin = this.rightHand.location.sub(this.rightHand.size.div(2)).add(originOffset);
         this.rightHand.collision = true;
 
-        this.weakpoint = new physicsObject(this.center);
-        this.weakpoint.size = new vec3(1,0.5,2);
-        this.weakpoint.origin = this.weakpoint.location.sub(this.weakpoint.size.div(2)).add(originOffset).add(new vec3(0,2.5,0));
-        this.weakpoint.collision = true;
-
-        // this.body = new physicsObject(this.center);
-        // this.body.size = new vec3(5,5,2);
-        // this.body.origin = this.body.location.sub(this.body.size.div(2)).add(originOffset);
-        // this.body.location = this.body.origin
-        // this.body.collision = true;
 
         this.doesPlatformVelocity = true
         this.location = this.center.copy()
         this.size = new vec3(5,5,2);
         this.origin = this.location.sub(this.size.div(2)).add(originOffset);
+
+
+        this.weakpoint = new physicsObject(this.center);
+        this.weakpoint.size = new vec3(1,0.5,2);
+        // this.weakpoint.origin = this.weakpoint.location.sub(this.weakpoint.size.div(2)).add(originOffset).add(new vec3(0,2.5,0));
+        this.weakpoint.collision = true;
+
+        this.weakPointoffset = new vec3(-0.5,2.5,0).add(new vec3(2.5,2.5,0));
+
+
 
         this.collision = true;
 
@@ -1661,6 +1717,13 @@ export class Boss extends physicsObject {
                 object: this.rightHand,
                 waypoints: [new vec3(0,0,0), new vec3(0,0.5,0), new vec3(0,1,0), new vec3(0,-3,0), new vec3(0,0,0)],
             },
+
+            
+            body: {
+                time: 7,
+                object: this,
+                waypoints: [new vec3(0,0,0), new vec3(0,-4.5,0), new vec3(0,-4.5,0), new vec3(0,-4.5,0), new vec3(0,-4.5,0), new vec3(0,-4.5,0), new vec3(0,-4.5,0)],
+            },
         }
 
 
@@ -1698,12 +1761,28 @@ export class Boss extends physicsObject {
 
         this.reset()
 
-        this.attacksBeforeBodyMove = 2
+        this.attacksBeforeBodyMove = 4;
+        this.health = 3;
+
+        this.deathTime = 0;
+        
+        this.load();
     }
 
+    async load() {
+
+        this.faceTextures = [
+            (await loadImage(`./textures/enemies/boss/boss0.png`)).image,
+            (await loadImage(`./textures/enemies/boss/boss1.png`)).image,
+            (await loadImage(`./textures/enemies/boss/boss2.png`)).image,
+            (await loadImage(`./textures/enemies/boss/boss3.png`)).image,
+        ]
+        this.loaded = true
+    }
+
+
     reset() {
-        this.health = 3;
-        this.attackNumber = 0;
+        this.attackNumber = 1;
 
         this.activeAttack = "none";
         this.maxAttackTime = undefined;
@@ -1714,7 +1793,7 @@ export class Boss extends physicsObject {
         this.state = "";
 
         this.attackTime = 0;
-        this.attackCooldown = 2;
+        this.attackCooldown = 1.4;
 
         this.location = new vec3();
         this.weakpoint.location = new vec3();
@@ -1744,6 +1823,7 @@ export class Boss extends physicsObject {
         this.attackObject = this.attackData[attack].object;
         this.attackOrigin = this.attackObject.origin.copy();
         this.attackNumber++;
+        this.returningToOrigin = false;
     }
 
     doAttack(deltaTime) {
@@ -1759,6 +1839,12 @@ export class Boss extends physicsObject {
             const offset = start.add(end.sub(start).mult(segmentProgress));
 
             this.attackObject.location = this.attackOrigin.add(offset);
+
+            if (this.segmentIndex == this.waypoints.length - 1) {
+                this.returningToOrigin = true;
+                this.weakpointActive = false;
+            }
+
         }
         // else if (this.activeAttack == "body") {
         //     const speed = 6 * deltaTime
@@ -1802,8 +1888,12 @@ export class Boss extends physicsObject {
             const maxIntroTime = 2
 
             if (this.introTime > maxIntroTime) {
-                this.startAttack("leftPunch")
-                this.phase = "firstPunch"
+                if (this.health == 3) {
+                    this.startAttack("leftPunch")
+                    this.phase = "firstPunch"
+                } else {
+                    this.phase = "fight"
+                }
             }
 
             const distance = 30
@@ -1812,7 +1902,6 @@ export class Boss extends physicsObject {
             this.leftHand.location = this.leftHand.origin.sub(new vec3(x,0,0))
             this.rightHand.location = this.rightHand.origin.sub(new vec3(x,0,0))
             this.location = this.origin.sub(new vec3(x,0,0))
-            this.weakpoint.location = this.weakpoint.origin.sub(new vec3(x,0,0))
 
         } else if (this.phase == "firstPunch") {
 
@@ -1831,7 +1920,15 @@ export class Boss extends physicsObject {
 
         } else if (this.phase == "fight") {
 
-            if (this.health <= 0) this.phase = "dead"
+            if (this.health <= 0) {
+                this.phase = "dead"
+                this.activeAttack = "none";
+                this.maxAttackTime = undefined
+                this.waypoints = undefined
+                this.attackObject = undefined
+                this.weakpointActive = false;
+                player.velocity.y = 5;
+            }
 
             if (this.attackTime < 0) {
                 this.activeAttack = "none";
@@ -1839,17 +1936,14 @@ export class Boss extends physicsObject {
                 this.waypoints = undefined
                 this.attackObject = undefined
                 this.location = this.origin.copy()
-                this.weakpoint.location = this.weakpoint.origin.copy()
                 this.weakpointActive = false;
             }
 
             if (this.attackTime < -this.attackCooldown) {
 
                 if (this.attackNumber % this.attacksBeforeBodyMove == 0) {
-                    this.activeAttack = "body"
-                    this.maxAttackTime = 7
-                    this.attackTime = 7
-                    this.attackNumber++;
+                    this.startAttack("body")
+                    this.weakpointActive = true;
                 } else {
                     const attack = this.chooseRandom(this.attacks);
                     this.startAttack(attack)
@@ -1858,17 +1952,36 @@ export class Boss extends physicsObject {
 
         } else if (this.phase == "dead") {
 
-            if (this.attackTime < 0) {
+            if (!this.doingDeathAnimation) {
+                this.velocity.x = -1
+                this.leftHand.velocity.x = -4
+                this.rightHand.velocity.x = 4
+            }
 
+            for (const obj of [...this.childObjects,this]) {
+                if (!obj.doingDeathAnimation) {
+                    obj.doingDeathAnimation = true
+                    obj.velocity.y = 6
+                }
+                obj.velocity.y -= 0.3
+
+                obj.location = obj.location.add(obj.velocity.mult(deltaTime))
+            }
+            
+            this.deathTime += deltaTime * 1000
+
+            if (this.deathTime > 3000) {
+                this.phase = "ended"
+                player.killedBoss = true;
             }
 
         }
 
         let speed = 1
         if (this.health == 2) {
-            speed = 1.3
+            speed = 1.1
         } if (this.health == 1) {
-            speed = 1.8
+            speed = 1.2
         }
 
         this.attackTime -= deltaTime * speed
@@ -1876,10 +1989,14 @@ export class Boss extends physicsObject {
         if (this.phase != "intro") {
             this.doAttack(deltaTime);
         }
+        this.weakpoint.location = this.location.add(this.weakPointoffset);
 
         for (const obj of this.childObjects) {
-   
+            if (this.phase == "dead") break;
+            
             if (!obj.isCollidingWith(player)) continue;
+
+            if (this.returningToOrigin) continue;
 
             if (this.weakpointActive && obj == this.weakpoint) {
                 this.health --;
@@ -1919,10 +2036,10 @@ export class Boss extends physicsObject {
         }
 
         const colliding = this.isCollidingWith(player) || (player.touchingPhysicsObjects && player.touchingPhysicsObjects.includes(this))
-        if (!this.weakpointActive && colliding) {
+        if (this.phase != "dead" && !this.weakpointActive && colliding) {
             const dir = player.location.x < this.location.x? -1:1
-            player.velocity.x += 10 * dir
-            player.velocity.y += 10
+            player.velocity.x = 20 * dir
+            player.velocity.y = 10
         }
 
         this.updateFaces();
@@ -1965,5 +2082,10 @@ export class Boss extends physicsObject {
         this.faces[16].brightness = brightness
         this.faces[17].brightness = brightness
         this.faces[18].brightness = brightness
+
+        if (this.loaded) {
+            const textureIndex = Math.max(0, Math.min(3, this.health))
+            this.faces[5].brightness = this.faceTextures[textureIndex]
+        }
     }
 }

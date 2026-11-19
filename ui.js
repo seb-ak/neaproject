@@ -42,28 +42,28 @@ export class UiController {
     keyDown(event) {
         
         // random colours //
-        if (event.code === "KeyC") {
-            this.main.settings.colours[7] = {
-                dark: {r:Math.random()*255, g:Math.random()*255, b:Math.random()*255}, 
-                light: {r:Math.random()*255, g:Math.random()*255, b:Math.random()*255}
-            }
-            console.log(this.main.settings.colours[7])
-            this.main.settings.colourScheme = 7
+        // if (event.code === "KeyC") {
+        //     this.main.settings.colours[7] = {
+        //         dark: {r:Math.random()*255, g:Math.random()*255, b:Math.random()*255}, 
+        //         light: {r:Math.random()*255, g:Math.random()*255, b:Math.random()*255}
+        //     }
+        //     console.log(this.main.settings.colours[7])
+        //     this.main.settings.colourScheme = 7
 
-            this.main.saveSettings();
-        }
-        if (event.code === "KeyV") {
-            const differ = 200
-            const colour = {r:Math.random()*255, g:Math.random()*255, b:Math.random()*255}
-            this.main.settings.colours[7] = {
-                dark: colour, 
-                light: {r:colour.r + (Math.random()-0.5)*differ, g:colour.g + (Math.random()-0.5)*differ, b:colour.b + (Math.random()-0.5)*differ}
-            }
-            console.log(this.main.settings.colours[7])
-            this.main.settings.colourScheme = 7
+        //     this.main.saveSettings();
+        // }
+        // if (event.code === "KeyV") {
+        //     const differ = 200
+        //     const colour = {r:Math.random()*255, g:Math.random()*255, b:Math.random()*255}
+        //     this.main.settings.colours[7] = {
+        //         dark: colour, 
+        //         light: {r:colour.r + (Math.random()-0.5)*differ, g:colour.g + (Math.random()-0.5)*differ, b:colour.b + (Math.random()-0.5)*differ}
+        //     }
+        //     console.log(this.main.settings.colours[7])
+        //     this.main.settings.colourScheme = 7
 
-            this.main.saveSettings();
-        }
+        //     this.main.saveSettings();
+        // }
         // random colours //
 
         if (event.code === "Escape" && this.activeScreen.backAction != undefined) {
@@ -133,10 +133,12 @@ export class UiController {
         const areYouSureScreen = new UiScreen(this, "Are you sure?");
         const gameScreen = new UiScreen(this, "Game");
         const deathScreen = new UiScreen(this, "Death");
+        const endScreen = new UiScreen(this, "End");
         
         this.gameScreen = gameScreen;
         this.pauseMenuScreen = pauseMenuScreen
         this.deathScreen = deathScreen;
+        this.endScreen = endScreen;
 
         this.activeScreen = mainMenuScreen;
 
@@ -182,7 +184,7 @@ export class UiController {
 
             const colourScheme = new UiButton(settingsScreen, `Colour ${this.main.settings.colourScheme}`, 1,4, 6,1);
             colourScheme.action = () => {
-                this.main.settings.colourScheme = (this.main.settings.colourScheme + 1) % this.main.settings.colours.length;
+                this.main.settings.colourScheme = (this.main.settings.colourScheme + 1) % this.main.colours.length;
                 colourScheme.text = `Colour ${this.main.settings.colourScheme}`;
             
                 this.main.saveSettings();
@@ -295,6 +297,13 @@ export class UiController {
             
             youDied.backAction = () => {console.log("death pause"); this.goToScreen(pauseMenuScreen); }
 
+
+        // end screen
+            const youWon = new UiElement(endScreen, "Boss Defeated!", 1,1, 7,1);
+
+            const exitButton2 = new UiButton(endScreen, "Exit", 3,5, 6,2);
+            exitButton2.action = () => { this.goToScreen(areYouSureScreen); };
+
     
     }
 
@@ -332,8 +341,9 @@ export class UiController {
         }
 
         
-        const colour = this.main.settings.dithering ?
-            {dark:{r:0,g:0,b:0},light:{r:255,g:255,b:255}} : this.main.settings.colours[this.main.settings.colourScheme]
+        // const colour = this.main.settings.dithering ?
+        //     {dark:{r:0,g:0,b:0},light:{r:255,g:255,b:255}} : this.main.colours[this.main.settings.colourScheme]
+        const colour = {dark:{r:0,g:0,b:0},light:{r:255,g:255,b:255}}
 
         this.activeScreen.draw(ctx, colour, this.topTextVisible, this.bottomTextVisible, this.deltaTime);
 
