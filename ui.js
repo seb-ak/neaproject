@@ -340,9 +340,6 @@ export class UiController {
             ctx.globalAlpha = 1.0;
         }
 
-        
-        // const colour = this.main.settings.dithering ?
-        //     {dark:{r:0,g:0,b:0},light:{r:255,g:255,b:255}} : this.main.colours[this.main.settings.colourScheme]
         const colour = {dark:{r:0,g:0,b:0},light:{r:255,g:255,b:255}}
 
         this.activeScreen.draw(ctx, colour, this.topTextVisible, this.bottomTextVisible, this.deltaTime);

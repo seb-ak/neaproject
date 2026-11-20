@@ -1,4 +1,4 @@
-import { logError, clearLog, vec3, loadImage, Quad } from "./utils.js";
+import { logError, clearLog, vec3, loadImage, Quad, LOADING } from "./utils.js";
 import { gameObject, levelTile, SpawnPoint, Player, Enemy, Platform, Portal, Spike, BossChase, Interactable, DeathBarrier, Boss } from "./gameObjects.js";
 import { UiController } from "./ui.js"
 
@@ -460,6 +460,7 @@ class Level {
 class Main {
     constructor() {
         this.loaded = false;
+        this.loadingTime = 0;
 
         this.colours = [
             { dark: {r:5, g:28, b:12}, light: {r:51, g:255, b:102}},
@@ -485,7 +486,8 @@ class Main {
         this.frames = 0;
         this.nextSecond = 0;
         
-        this.limitFps = false;
+        this.limitFps = true;
+        this.lastFrameTime = 0
 
         this.canvas = document.getElementById("gameCanvas");
         // this.ctx = this.canvas.getContext("2d");
@@ -548,18 +550,16 @@ class Main {
 
     update(currentTime) {
 
-        
-        if (!this.loaded) {
-            requestAnimationFrame(this.update.bind(this));
-            return;
-        }
-
         if (this.limitFps) {
-            this.limitFpsFrame = !this.limitFpsFrame
-            if (this.limitFpsFrame) {
+            const frameInterval = 1000 / 60;
+            const elapsed = currentTime - this.lastFrameTime;
+
+            if (elapsed < frameInterval) {
                 requestAnimationFrame(this.update.bind(this));
                 return;
             }
+
+            this.lastFrameTime = currentTime - (elapsed % frameInterval);
         }
 
         clearLog()
@@ -578,7 +578,21 @@ class Main {
             }
         }
 
-        this.deltaTime = Math.max(1/144, Math.min(1/30, this.deltaTime))
+        this.deltaTime = Math.max(1/70, Math.min(1/30, this.deltaTime))
+
+        if (LOADING.size > 0 || !this.loaded) {
+            this.loadingTime += this.deltaTime;
+            this.ctx.fillStyle = "#000000";
+            this.ctx.fillRect(0, 0, this.screen.width, this.screen.height);
+            this.ctx.font = `30px Arial`;
+            this.ctx.fillStyle = "#eeeeee";
+            const text = "Loading" + ".".repeat(Math.floor(this.loadingTime*25));
+            this.ctx.fillText(text, 6, this.screen.height-8);
+            this.dither()
+            requestAnimationFrame(this.update.bind(this));
+            return;
+        }
+
         // if (this.deltaTime > 1/30 || this.deltaTime < 1/1000) {
         //     console.log(this.deltaTime);
 
@@ -678,8 +692,7 @@ class Main {
     }
 
     draw() {
-        const colour = this.settings.dithering ?
-            {dark:{r:0,g:0,b:0},light:{r:255,g:255,b:255}} : this.settings.colours[this.settings.colourScheme];
+        const colour = {dark:{r:0,g:0,b:0},light:{r:255,g:255,b:255}}
 
         this.ctx.fillStyle = `rgb(${colour.dark.r}, ${colour.dark.g}, ${colour.dark.b})`
         this.ctx.fillRect(0, 0, this.screen.width, this.screen.height);

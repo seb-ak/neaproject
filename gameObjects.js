@@ -402,7 +402,7 @@ export class Player extends physicsObject {
         this.jumpForce = 11.2;
         this.baseGravity = 0.5;
         this.jumpTime = 0;
-        this.maxJumpTime = 200;
+        this.maxJumpTime = 210;
 
         this.cyoteTime = 0;
         this.maxCyoteTime = 200;
@@ -1567,6 +1567,9 @@ export class Portal extends gameObject {
 
             if (this.id == "250") {
                 player.inBossFight = true;
+                player.topTextTime = 0
+                player.topText = "To damage boss jump on a Flashing weakpoint"
+                                
             }
 
         }

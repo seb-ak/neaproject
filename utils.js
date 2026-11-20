@@ -142,13 +142,19 @@ export class Quad {
     }
 }
 
+export let LOADING = new Set();
+let i = 0;
+
 export async function loadImage(path) {
     // Source - https://stackoverflow.com/a/61516442
     // Posted by sney2002
     // Retrieved 2026-03-04, License - CC BY-SA 4.0
     
     // modified to fit my needs
-    
+    const id = `${Math.random()}-${Date.now()}-${i}`
+    i++
+    LOADING.add(id)
+
     return new Promise((resolve, reject) => {
         const img = new Image();
 
@@ -186,6 +192,7 @@ export async function loadImage(path) {
                 }
             }
     
+            LOADING.delete(id)
             // console.log(array)
             resolve({
                 image: img,
@@ -193,6 +200,7 @@ export async function loadImage(path) {
             });
         }
         img.onerror = () => { 
+            LOADING.delete(id)
             console.error(`Failed to load image: ${path}`);
             reject(new Error(`Failed to load image: ${path}`));
         }
