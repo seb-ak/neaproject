@@ -360,6 +360,8 @@ export class Player extends physicsObject {
         this.spawnPoint = undefined;
         this.levelID = "main";
 
+        this.deaths = 0;
+
         this.type = "player";
         this.size = new vec3(0.5,1,0.5);
         this.brightness = 1;
@@ -372,23 +374,23 @@ export class Player extends physicsObject {
         this.location.z += this.size.z/2
 
         this.pressedInputs = {
-            up:    {keys:["w","arrowup"],active:false},
-            down:  {keys:["s","arrowdown"],active:false},
-            left:  {keys:["a","arrowleft"],active:false},
-            right: {keys:["d","arrowright"],active:false},
-            jump:  {keys:[" ","control","0","insert"],active:false},
-            // dash:  {keys:["shift",],active:false},
-            select:{keys:["e","enter"],active:false},
+            up:    {keys:["KeyW","ArrowUp"],active:false},
+            down:  {keys:["KeyS","ArrowDown"],active:false},
+            left:  {keys:["KeyA","ArrowLeft"],active:false},
+            right: {keys:["KeyD","ArrowRight"],active:false},
+            jump:  {keys:["Space","ControlRight","Digit0","Insert"],active:false},
+            // dash:  {keys:["Shift",],active:false},
+            select:{keys:["KeyE","Enter"],active:false},
         }
         document.addEventListener("keydown", (event) => {
             for (const input of Object.values(this.pressedInputs)) {
-                const key = event.key.toLowerCase();
+                const key = event.code;
                 if ( input.keys.includes(key) ) input.active = true;
             }
         });
         document.addEventListener("keyup", (event) => {
             for (const input of Object.values(this.pressedInputs)) {
-                const key = event.key.toLowerCase();
+                const key = event.code;
                 if ( input.keys.includes(key) ) input.active = false;
             }
         });
@@ -504,7 +506,7 @@ export class Player extends physicsObject {
         if (this.unlocks.key2) count++
         if (this.unlocks.key3) count++
         if (this.unlocks.key4) count++
-        console.log(`keys: ${count}`)
+        // console.log(`keys: ${count}`)
         return count
     }
 
@@ -930,7 +932,7 @@ export class Player extends physicsObject {
 
         
         // death
-            if (this.health <= 0 && this.deathTimer == -1) this.deathTimer = 2000;
+            if (this.health <= 0 && this.deathTimer == -1) {this.deathTimer = 2000; this.deaths++}
             if (this.deathTimer != -1) this.deathTimer -= deltaTime * 1000;
             if (this.deathTimer != -1 && this.deathTimer <= 0) this.spawn(level);
 
@@ -970,7 +972,7 @@ export class Player extends physicsObject {
                 this.bottomText = "Checkpoint reached"
                 this.bottomTextTime = 0
 
-                console.log("new spawnpoint unlocked")
+                // console.log("new spawnpoint unlocked")
             }
 
 
@@ -1451,7 +1453,7 @@ export class Interactable extends gameObject {
         
         const keys = player.countKeys()
         if (keys < player.keysNeeded) {
-            console.log(`need ${Math.max(0, player.keysNeeded-keys)} more keys to unlock`)
+            // console.log(`need ${Math.max(0, player.keysNeeded-keys)} more keys to unlock`)
             return;
         }
 
@@ -1630,7 +1632,7 @@ export class DeathBarrier extends physicsObject {
 export class Boss extends physicsObject {
     
     constructor(locations) {
-        console.log("boss spawned and is working")
+        // console.log("boss spawned and is working")
         // console.log(locations)
         super(locations[1].add(locations[2]).div(2))
 
@@ -1768,7 +1770,8 @@ export class Boss extends physicsObject {
         this.health = 3;
 
         this.deathTime = 0;
-        
+        this.addedToLevel = false;
+
         this.load();
     }
 
@@ -1848,7 +1851,7 @@ export class Boss extends physicsObject {
 
             this.attackObject.location = this.attackOrigin.add(offset);
 
-            if (segmentIndex == this.waypoints.length - 2) {
+            if (segmentIndex == this.waypoints.length - 1) {
                 this.returningToOrigin = true;
                 this.weakpointActive = false;
             }
@@ -1874,6 +1877,18 @@ export class Boss extends physicsObject {
     }
 
     tick(deltaTime, level) {
+
+        // if (!this.addedToLevel) {
+        //     this.addedToLevel = true;
+
+        //     this.leftHand.ticking = false;
+        //     this.leftHand.collision = true;
+        //     level.addToChunk(this.leftHand);
+
+        //     this.rightHand.ticking = false;
+        //     this.rightHand.collision = true;
+        //     level.addToChunk(this.rightHand);
+        // }
 
         this.level = level
         const player = level.player
@@ -1987,9 +2002,9 @@ export class Boss extends physicsObject {
 
         let speed = 1
         if (this.health == 2) {
-            speed = 1.1
+            speed = 1.15
         } if (this.health == 1) {
-            speed = 1.2
+            speed = 1.4
         }
 
         this.attackTime -= deltaTime * speed
@@ -1998,7 +2013,7 @@ export class Boss extends physicsObject {
             this.doAttack(deltaTime);
         }
         this.weakpoint.location = this.location.add(this.weakPointoffset);
-console.log(this.returningToOrigin)
+
         for (const obj of this.childObjects) {
             if (this.phase == "dead") break;
             
@@ -2013,7 +2028,7 @@ console.log(this.returningToOrigin)
                     this.attackTime = this.maxAttackTime*1/5;
                 }
                 player.velocity.y = 30;
-                const left = player.location.x < this.location.x;
+                const left = player.getPoint().center.x < this.getPoint().center.x;
                 player.velocity.x += 5 * left? -1:1;
                 return;
             }
@@ -2045,7 +2060,9 @@ console.log(this.returningToOrigin)
 
         const colliding = this.isCollidingWith(player) || (player.touchingPhysicsObjects && player.touchingPhysicsObjects.includes(this))
         if (this.phase != "dead" && !this.weakpointActive && colliding) {
-            const dir = player.location.x < this.location.x? -1:1
+
+            const dir = player.getPoint().center.x < this.getPoint().center.x? -1:1
+
             player.velocity.x = 20 * dir
             player.velocity.y = 10
         }

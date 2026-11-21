@@ -10,9 +10,11 @@
   <style>
     body {
       background-color: #22272E;
+      color: #ADBAC7;
+      font-weight: bold; 
       font-family: monospace;
-      color: #ADBAC7; font-weight: bold; 
-      margin: 0; overflow: hidden;
+      margin: 0;
+      overflow: hidden;
     }
     #gameCanvas {
       width: calc(192px * 2);
@@ -21,39 +23,62 @@
       display: block;
       margin: auto;
     }
+    .container {
+      display: flex;
+      flex-direction: row;
+    }
+    .box {
+      width: 50%;
+    }
   </style>
 
 </head>
 <body>
 
   <canvas id="gameCanvas" width="384" height="288"></canvas>
+  
+  <div class="container">
 
-  <div id="console"> <p>FPS: </p>  </div>
+    <div class="box">
+      <div id="console"> <p>FPS: </p>  </div>
+    
+      controls
+      <ul>
+        <li>WASD to move</li>
+        <li>Space to jump</li>
+        <li>E to interact</li>
+        <li>Escape to pause game</li>
+      </ul>
+    
+      hints
+      <ul>
+        <li>hold jump to go higher</li>
+        <li>tap jump to go less high</li>
+    
+        <li>hold up and tap jump in air to double jump</li>
+        <li>hold left or right and tap jump in air to dash</li>
+        <li>hold down and tap jump in air to ground slam</li>
+    
+        <li>hold S to crouch</li>
+        <li>crouch whilst running to slide</li>
+        <li>jump whilst sliding to slide jump</li>
+    
+        <li>unlock the door to fight the boss</li>
+        <li>damage the boss by jumping on flashing weakpoints</li>
+      </ul>
+    </div>
 
-  controls
-  <ul>
-    <li>WASD to move</li>
-    <li>Space to jump</li>
-    <li>E to interact</li>
-    <li>Escape to pause game</li>
-  </ul>
+    <div class="box">
+      <!-- <form>
+        <input type="text">
+        <textarea f></textarea>
 
-  hints
-  <ul>
-    <li>hold jump to go higher</li>
-    <li>tap jump to go less high</li>
+        <input type="submit">
+      </form> -->
+    </div>
 
-    <li>hold up and tap jump in air to double jump</li>
-    <li>hold left or right and tap jump in air to dash</li>
-    <li>hold down and tap jump in air to ground slam</li>
 
-    <li>hold S to crouch</li>
-    <li>crouch whilst running to slide</li>
-    <li>jump whilst sliding to slide jump</li>
-
-    <li>unlock the door to fight the boss</li>
-    <li>damage the boss by jumping on flashing weakpoints</li>
-  </ul>
+  </div>
 
   <script type="module" src="./main.js"></script>
 

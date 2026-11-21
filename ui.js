@@ -295,14 +295,16 @@ export class UiController {
         // death screen
             const youDied = new UiElement(deathScreen, "You Died", 3,2, 6,2);
             
-            youDied.backAction = () => {console.log("death pause"); this.goToScreen(pauseMenuScreen); }
+            youDied.backAction = () => {this.goToScreen(pauseMenuScreen); }
 
 
         // end screen
             const youWon = new UiElement(endScreen, "Boss Defeated!", 1,1, 7,1);
+            const line1 = new UiElement(endScreen, "Boss Defeated!", 1,2, 7,1);
+            const line2 = new UiElement(endScreen, "Boss Defeated!", 1,3, 7,1);
 
-            const exitButton2 = new UiButton(endScreen, "Exit", 3,5, 6,2);
-            exitButton2.action = () => { this.goToScreen(areYouSureScreen); };
+            const playAgain = new UiButton(endScreen, "Play Again?", 3,5, 6,2);
+            playAgain.action = () => { this.goToScreen(areYouSureScreen); };
 
     
     }

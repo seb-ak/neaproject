@@ -206,7 +206,7 @@ class Level {
             }
 
             else if (hex === "#0000ff" && data == "100") { // door
-                console.log("door")
+                // console.log("door")
                 const o = new gameObject(new vec3(x*this.gridSize, y*this.gridSize, 0));
                 o.size = new vec3(this.gridSize*2, this.gridSize*11, this.gridSize*4);
                 o.collision = true;
@@ -230,7 +230,7 @@ class Level {
             
             else if (hex != "#ffffff") {
                 if (!testFoundHex.includes(hex)) {
-                    console.log(hex)
+                    // console.log(hex)
                     testFoundHex.push(hex)
                 }
                 /*
@@ -459,6 +459,17 @@ class Level {
 
 class Main {
     constructor() {
+        
+        this.stats = {
+            deaths: 0,
+            time: 0,
+            rawTime: 0,
+            fpsSum: 0,
+            fpsReadings: 0,
+            checkpoint: 0,
+            fpsAverage: 0,
+        }
+
         this.loaded = false;
         this.loadingTime = 0;
 
@@ -539,6 +550,7 @@ class Main {
         if (!Number.isInteger(this.settings.colourScheme) || this.settings.colourScheme < 0 || this.settings.colourScheme >= this.settings.colours.length) {
             this.settings.colourScheme = 0;
         }
+        this.setColourCSS();
     }
 
     async loadTextures() {
@@ -549,6 +561,8 @@ class Main {
     }
 
     update(currentTime) {
+
+        this.setColourCSS();
 
         if (this.limitFps) {
             const frameInterval = 1000 / 60;
@@ -575,6 +589,11 @@ class Main {
                 this.fps = this.frames
                 this.nextSecond = currentTime + 1000;
                 this.frames = 0;
+
+                // stats
+                this.stats.fpsSum += Math.min(60, this.fps);
+                this.stats.fpsReadings++;
+                this.stats.fpsAverage = (this.stats.fpsSum / this.stats.fpsReadings).toFixed(2)
             }
         }
 
@@ -588,7 +607,7 @@ class Main {
             this.ctx.fillStyle = "#eeeeee";
             const text = "Loading" + ".".repeat(Math.floor(this.loadingTime*25));
             this.ctx.fillText(text, 6, this.screen.height-8);
-            this.dither()
+            if (this.settings.dithering) this.dither()
             requestAnimationFrame(this.update.bind(this));
             return;
         }
@@ -603,15 +622,34 @@ class Main {
         if (this.player.initialSpawn) {
             this.player.spawn(this.level[this.player.levelID]);
         }
-
+                
         if (this.player.killedBoss && (this.ui.activeScreen == this.ui.gameScreen || this.ui.activeScreen == this.ui.deathScreen)) {
             this.ui.activeScreen = this.ui.endScreen
+            this.ui.endScreen.elements[1].text = `${this.stats.deaths} Deaths`
+            this.ui.endScreen.elements[2].text = `${this.stats.time}`
         }
+
 
         const paused = !(
             this.ui.activeScreen == this.ui.gameScreen ||
-            this.ui.activeScreen == this.ui.deathScreen
+            this.ui.activeScreen == this.ui.deathScreen ||
+            this.ui.activeScreen == this.ui.endScreen
         );
+
+
+
+        // stats
+            this.stats.deaths = this.player.deaths
+            if (!paused) this.stats.rawTime += this.deltaTime
+            const minutes = String(Math.floor(this.stats.rawTime / 60)).padStart(2, '0');
+            const seconds = String(Math.floor(this.stats.rawTime % 60)).padStart(2, '0');
+            const milliseconds = String(Math.round((this.stats.rawTime % 1) * 1000)).padStart(3, '0');
+            this.stats.time = `${minutes}:${seconds}.${milliseconds}`;
+            if (this.player.activeSpawn.object.id > this.stats.checkpoint) this.stats.checkpoint = this.player.activeSpawn.object.id;
+            // console.log(this.stats)
+        //
+
+
 
         if (!paused) {
         
@@ -782,6 +820,15 @@ class Main {
 
         this.ctx.putImageData(imageData, 0, 0);
 
+    }
+
+    setColourCSS() {
+        const colour = this.colours[this.settings.colourScheme];
+        const dark = `rgb(${colour.dark.r}, ${colour.dark.g}, ${colour.dark.b})`
+        const light = `rgb(${colour.light.r}, ${colour.light.g}, ${colour.light.b})`
+
+        document.body.style.backgroundColor = this.settings.dithering ? dark : "#22272E";
+        document.body.style.color = this.settings.dithering ? light : "#ADBAC7";
     }
 
 }
