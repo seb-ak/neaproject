@@ -547,7 +547,7 @@ class Main {
             this.settings = { ...this.settings, ...savedSettings };
         }
 
-        if (!Number.isInteger(this.settings.colourScheme) || this.settings.colourScheme < 0 || this.settings.colourScheme >= this.settings.colours.length) {
+        if (!Number.isInteger(this.settings.colourScheme) || this.settings.colourScheme < 0 || this.settings.colourScheme >= this.colours.length) {
             this.settings.colourScheme = 0;
         }
         this.setColourCSS();
