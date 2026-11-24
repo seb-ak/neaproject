@@ -223,15 +223,21 @@ export class UiController {
                 down: colourScheme,
                 right: backButton,
             }
-
+            
             colourScheme.nextElement = {
                 up: dithering,
+                right: backButton,
+                down: performance,
+            }
+
+            performance.nextElement = {
+                up: colourScheme,
                 right: backButton,
                 down: backButton,
             }
 
             backButton.nextElement = {
-                up: colourScheme,
+                up: performance,
                 left: dithering,
             }
 

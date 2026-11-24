@@ -29,7 +29,7 @@ class MobileControlls {
     #controls {
         bottom: 10vmin;
         width: 100vmin;
-        height: 42vmin;
+        height: 43vmin;
         position: absolute;
         margin-top: 2vmin;
         pointer-events: none;
@@ -50,6 +50,8 @@ class MobileControlls {
         user-select: none;
         -webkit-user-select: none;
         -ms-user-select: none;
+        -webkit-touch-callout: none;
+        -webkit-user-select: none;
     }
 
     #joystick {
@@ -62,20 +64,22 @@ class MobileControlls {
     }
 
     #joystick > div:first-child {
+        box-sizing: border-box;
         width: 30vmin;
         height: 30vmin;
         border-radius: 50%;
-        background: #c3bdc7;
-        border: 0.6vmin solid #c3bdc7;
+        background: var(--background-color);
+        border: 0.6vmin solid var(--color);
         position: absolute;
     }
 
     #joystick-knob {
+        box-sizing: border-box;
         width: 14vmin;
         height: 14vmin;
         border-radius: 50%;
-        background: #474956;
-        border: 0.6vmin solid #272731;
+        background: var(--background-color);
+        border: 1.5vmin solid var(--color);
         position: absolute;
         left: 8vmin;
         top: 8vmin;
@@ -87,20 +91,21 @@ class MobileControlls {
         width: 20vmin;
         height: 20vmin;
         border-radius: 50%;
-        background: #84145E;
-        border: 1.5vmin solid #c3bdc7;
+        background: var(--background-color);
+        border: 1.5vmin solid var(--color);
         pointer-events: auto;
         bottom: 0vmin;
         
         margin-top: 20vmin;
         text-align: center;
         font-weight: bold;
-        color: #302B6D;
+        color: var(--color);
         font-size: 4vmin;
     }
 
     #btnA:active, #btnB:active {
-        background: #6b124e;
+        background: var(--color);
+        color: var(--background-color);
     }
 
     #btnA {
@@ -115,8 +120,7 @@ class MobileControlls {
         position: absolute;
         width: 20vmin;
         height: 20vmin;
-        background: #C3BDC7;
-        /* border: 1.5vmin solid #C3BDC7; */
+        background: var(--color);
         pointer-events: auto;
         rotate: -27deg;
         right: 15vmin;
@@ -128,8 +132,8 @@ class MobileControlls {
         width: 14vmin;
         height: 5.5vmin;
         border-radius: 2vmin;
-        background: #988FA2;
-        border: .9vmin solid #c3bdc7;
+        background: var(--background-color);
+        border: .9vmin solid var(--color);
         pointer-events: auto;
         bottom: -4vmin;
         rotate: -27deg;
@@ -137,13 +141,14 @@ class MobileControlls {
         margin-top: 20vmin;
         text-align: center;
         font-weight: bold;
-        color: #302B6D;
+        color: var(--color);
         font-size: 2.8vmin;
         margin-top: 2.8vmin;
     }
 
     #select:active, #start:active {
-        background: #726d79;
+        background: var(--color);
+        color: var(--background-color);
     }
 
     #select {
@@ -211,9 +216,14 @@ class MobileControlls {
 <button id="hideshow">Touch Controls</button>
 `
 
-    document.body.insertAdjacentHTML("beforeend", this.style);
-    document.body.insertAdjacentHTML("beforeend", this.html);
+        document.body.insertAdjacentHTML("beforeend", this.style);
+        document.body.insertAdjacentHTML("beforeend", this.html);
         
+        controls.addEventListener("contextmenu", (event) => {
+            event.preventDefault();
+            event.stopImmediatePropagation();
+        });
+
         hideshow.addEventListener('click', () => { controls.classList.toggle('hidden'); });
 
         this.keysDown = {}
@@ -226,7 +236,7 @@ class MobileControlls {
     
         this.joystick.addEventListener("touchstart", e => { this.joyActive = true; this.joyMove(e); }, {passive:false});
         this.joystick.addEventListener("touchmove", e => { this.joyActive = true; this.joyMove(e); }, {passive:false});
-        this.joystick.addEventListener("touchend", e => { this.joyActive = false; this.knob.style.left="8vw"; this.knob.style.top="8vw"; this.resetVirtualKeys(); }, {passive:false});
+        this.joystick.addEventListener("touchend", e => { this.joyActive = false; this.resetVirtualKeys(); }, {passive:false});
         // this.joystick.addEventListener("mousedown", e => { this.joyActive = true; this.joyMove(e); });
         // window.addEventListener("mousemove", e => { if (this.joyActive) this.joyMove(e); });
         // window.addEventListener("mouseup", e => { if (this.joyActive) { this.joyActive = false; this.knob.style.left="8vw"; this.knob.style.top="8vw"; this.resetVirtualKeys(); } });
@@ -291,6 +301,10 @@ class MobileControlls {
     }
 
     resetVirtualKeys() {
+        this.knob.style.backgroundColor = "var(--background-color)";
+        this.knob.style.left="8vw";
+        this.knob.style.top="8vw";
+
         this.simulateKeyUp("KeyW");
         this.simulateKeyUp("KeyA");
         this.simulateKeyUp("KeyS");
@@ -298,7 +312,13 @@ class MobileControlls {
     }
 
     joyMove(e) {
-        if (!this.joyActive) return;
+        if (!this.joyActive) {
+            this.knob.style.backgroundColor = "var(--background-color)";
+            return;
+        }
+        
+        this.knob.style.backgroundColor = "var(--color)";
+        
         let touch = e.touches ? e.touches[0] : e;
         let rect = joystick.getBoundingClientRect();
         let dx = touch.clientX - (rect.left + rect.width / 2);
