@@ -26,14 +26,19 @@ export class UiController {
         this.topTextVisible = false;
         this.bottomTextVisible = false;
 
-        const gameWindow = document.getElementById("gameCanvas");
+        this.gameWindow = document.getElementById("gameCanvas");
 
-        gameWindow.addEventListener("mousemove", (event) => { this.mouseMove(event) });
-        gameWindow.addEventListener("mouseenter", (event) => { this.mouseMove(event) });
-        gameWindow.addEventListener("mouseleave", (event) => { this.mouseMove(event); this.mouseUp(event); });
+        this.gameWindow.addEventListener("mousemove", (event) => { this.mouseMove(event) });
+        this.gameWindow.addEventListener("touchmove", (event) => { this.mouseMove(event); this.mouseDown(event); }, {passive:false});
 
-        gameWindow.addEventListener("mousedown", (event) => { this.mouseDown(event); });
-        gameWindow.addEventListener("mouseup", (event) => { this.mouseUp(event); });
+        this.gameWindow.addEventListener("mousedown", (event) => { this.mouseDown(event); });
+        this.gameWindow.addEventListener("touchstart", (event) => { this.mouseMove(event); this.mouseDown(event); }, {passive:false});
+
+        this.gameWindow.addEventListener("mouseup", (event) => { this.mouseUp(event); });
+        this.gameWindow.addEventListener("touchend", (event) => { this.mouseUp(event); }, {passive:false});
+        
+        this.gameWindow.addEventListener("mouseenter", (event) => { this.mouseMove(event) });
+        this.gameWindow.addEventListener("mouseleave", (event) => { this.mouseMove(event); this.mouseUp(event); });
 
         document.addEventListener("keydown", (event) => { this.keyDown(event); });
 
@@ -115,8 +120,17 @@ export class UiController {
     }
 
     mouseMove(event) {
-        this.mouse.x = event.offsetX;
-        this.mouse.y = event.offsetY;
+        if (!event.touches) {
+            this.mouse.x = event.offsetX;
+            this.mouse.y = event.offsetY;
+            return
+        }
+        for (const touch of event.touches) {
+            const rect = this.gameWindow.getBoundingClientRect();
+            this.mouse.x = touch.clientX - rect.left;
+            this.mouse.y = touch.clientY - rect.top;
+            return
+        }
     }
 
     mouseDown(event) { this.mouse.down = true; this.mouse.isFirstEvent = true; }
@@ -168,7 +182,7 @@ export class UiController {
             };
 
 
-            // mainMenuScreen.backAction = () => { window.location.reload(); /*close();*/ }
+            mainMenuScreen.backAction = () => { this.goToScreen(gameScreen); }
 
         // settings menu
             const settingsTitle = new UiElement(settingsScreen, "Settings", 3,0, 6,1);

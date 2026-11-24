@@ -8,13 +8,18 @@
   <title>Game</title>
 
   <style>
+    :root {
+      --background-color: #22272E;
+      --color: #ADBAC7;
+    }
     body {
-      background-color: #22272E;
-      color: #ADBAC7;
+      background-color: var(--background-color);
+      color: var(--color);
       font-weight: bold; 
       font-family: monospace;
       margin: 0;
       overflow: hidden;
+      min-height: 100vh;
     }
     #gameCanvas {
       width: calc(192px * 2);
@@ -29,6 +34,8 @@
     }
     .box {
       width: 50%;
+      height: min-content;
+      overflow: scroll;
     }
   </style>
 
@@ -81,6 +88,8 @@
   </div>
 
   <script type="module" src="./main.js"></script>
+
+  <script type="module" src="./MobileControlls.js"></script>
 
 </body>
 </html>

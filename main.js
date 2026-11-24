@@ -824,11 +824,11 @@ class Main {
 
     setColourCSS() {
         const colour = this.colours[this.settings.colourScheme];
-        const dark = `rgb(${colour.dark.r}, ${colour.dark.g}, ${colour.dark.b})`
-        const light = `rgb(${colour.light.r}, ${colour.light.g}, ${colour.light.b})`
+        const dark = `rgb(${colour.dark.r}, ${colour.dark.g}, ${colour.dark.b})`;
+        const light = `rgb(${colour.light.r}, ${colour.light.g}, ${colour.light.b})`;
 
-        document.body.style.backgroundColor = this.settings.dithering ? dark : "#22272E";
-        document.body.style.color = this.settings.dithering ? light : "#ADBAC7";
+        document.documentElement.style.setProperty('--background-color', this.settings.dithering ? dark : "#22272E");
+        document.documentElement.style.setProperty('--color', this.settings.dithering ? light : "#ADBAC7");
     }
 
 }
