@@ -292,12 +292,17 @@ class MobileControlls {
 
 
     setVirtualKeys(dx, dy) {
-        const deadzoneX = 10
-        const deadzoneY = 4
-        if (dy < -deadzoneY) this.simulateKeyDown("KeyW"); else this.simulateKeyUp("KeyW");
-        if (dx < -deadzoneX) this.simulateKeyDown("KeyA"); else this.simulateKeyUp("KeyA");
-        if (dy > deadzoneY) this.simulateKeyDown("KeyS"); else this.simulateKeyUp("KeyS");
-        if (dx > deadzoneX) this.simulateKeyDown("KeyD"); else this.simulateKeyUp("KeyD");
+        // const deadzoneX = 10
+        // const deadzoneY = 4
+        // if (dy < -deadzoneY) this.simulateKeyDown("KeyW"); else this.simulateKeyUp("KeyW");
+        // if (dx < -deadzoneX) this.simulateKeyDown("KeyA"); else this.simulateKeyUp("KeyA");
+        // if (dy > deadzoneY) this.simulateKeyDown("KeyS"); else this.simulateKeyUp("KeyS");
+        // if (dx > deadzoneX) this.simulateKeyDown("KeyD"); else this.simulateKeyUp("KeyD");
+        const deadzone = 7
+        if (dy < -deadzone) this.simulateKeyDown("KeyW"); else this.simulateKeyUp("KeyW");
+        if (dx < -deadzone) this.simulateKeyDown("KeyA"); else this.simulateKeyUp("KeyA");
+        if (dy > deadzone) this.simulateKeyDown("KeyS"); else this.simulateKeyUp("KeyS");
+        if (dx > deadzone) this.simulateKeyDown("KeyD"); else this.simulateKeyUp("KeyD");
     }
 
     resetVirtualKeys() {

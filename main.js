@@ -730,6 +730,9 @@ class Main {
     }
 
     draw() {
+        logError(window.devicePixelRatio)
+        this.canvas.style.scale = window.devicePixelRatio
+
         const colour = {dark:{r:0,g:0,b:0},light:{r:255,g:255,b:255}}
 
         this.ctx.fillStyle = `rgb(${colour.dark.r}, ${colour.dark.g}, ${colour.dark.b})`
