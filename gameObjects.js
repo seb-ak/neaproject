@@ -1,4 +1,5 @@
 import { logError, vec3, Quad, loadImage } from "./utils.js";
+import { MobileControlls } from "./mobileControlls.js";
 
 export class gameObject {
     constructor(location) {
@@ -382,6 +383,7 @@ export class Player extends physicsObject {
             // dash:  {keys:["Shift",],active:false},
             select:{keys:["KeyE","Enter"],active:false},
         }
+        new MobileControlls(this.pressedInputs)
         document.addEventListener("keydown", (event) => {
             for (const input of Object.values(this.pressedInputs)) {
                 const key = event.code;
