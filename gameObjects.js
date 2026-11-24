@@ -1,5 +1,5 @@
 import { logError, vec3, Quad, loadImage } from "./utils.js";
-import { MobileControlls } from "./mobileControlls.js";
+import { MobileControlls } from "./MobileControlls.js";
 
 export class gameObject {
     constructor(location) {
