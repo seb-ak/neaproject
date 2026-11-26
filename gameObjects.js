@@ -360,7 +360,8 @@ export class Player extends physicsObject {
         this.spawnPoint = undefined;
         this.levelID = "main";
 
-        this.deaths = 0;
+        this.checkpointDeaths = [];
+        this.totalDeaths = 0;
 
         this.type = "player";
         this.size = new vec3(0.5,1,0.5);
@@ -932,7 +933,12 @@ export class Player extends physicsObject {
 
         
         // death
-            if (this.health <= 0 && this.deathTimer == -1) {this.deathTimer = 2000; this.deaths++}
+            if (this.health <= 0 && this.deathTimer == -1) {
+                this.deathTimer = 2000;
+                if (this.checkpointDeaths[this.spawnPoint.id] == undefined) this.checkpointDeaths[this.spawnPoint.id] = 0
+                this.checkpointDeaths[this.spawnPoint.id]++
+                this.totalDeaths++
+            }
             if (this.deathTimer != -1) this.deathTimer -= deltaTime * 1000;
             if (this.deathTimer != -1 && this.deathTimer <= 0) this.spawn(level);
 
