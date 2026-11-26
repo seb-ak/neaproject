@@ -461,12 +461,13 @@ class Main {
     constructor() {
         
         this.stats = {
-            deaths: 0,
+			settings: {},
+			checkpoint: [],
+            totalDeaths: 0,
             time: 0,
             rawTime: 0,
             fpsSum: 0,
             fpsReadings: 0,
-            checkpoint: 0,
             fpsAverage: 0,
         }
 
@@ -625,7 +626,7 @@ class Main {
                 
         if (this.player.killedBoss && (this.ui.activeScreen == this.ui.gameScreen || this.ui.activeScreen == this.ui.deathScreen)) {
             this.ui.activeScreen = this.ui.endScreen
-            this.ui.endScreen.elements[1].text = `${this.stats.deaths} Deaths`
+            this.ui.endScreen.elements[1].text = `${this.stats.totaldeaths} Deaths`
             this.ui.endScreen.elements[2].text = `${this.stats.time}`
         }
 
@@ -639,13 +640,26 @@ class Main {
 
 
         // stats
-            this.stats.deaths = this.player.deaths
+            this.stats.totalDeaths = this.player.totalDeaths
+			for (let i = 0; i < this.player.checkpointDeaths.length; i++) {
+				if (this.stats.checkpoint[i] == undefined) this.stats.checkpoint[i] = {time: 0, deaths:0}
+				this.stats.checkpoint[i].deaths = this.player.checkpointDeaths[i]
+			}
+
+			const checkpointId = this.player.activeSpawn.object.id
+			if (this.stats.checkpoint[checkpointId] == undefined) this.stats.checkpoint[checkpointId] = {time: 0, deaths:0}
+			this.stats.checkpoint[checkpointId].time += this.deltaTime
+
+			this.stats.settings.colour = this.settings.colourScheme
+			this.stats.settings.dithering = this.settings.dithering
+			this.stats.settings.performanceMode = this.settings.performance
+		
             if (!paused) this.stats.rawTime += this.deltaTime
             const minutes = String(Math.floor(this.stats.rawTime / 60)).padStart(2, '0');
             const seconds = String(Math.floor(this.stats.rawTime % 60)).padStart(2, '0');
             const milliseconds = String(Math.round((this.stats.rawTime % 1) * 1000)).padStart(3, '0');
             this.stats.time = `${minutes}:${seconds}.${milliseconds}`;
-            if (this.player.activeSpawn.object.id > this.stats.checkpoint) this.stats.checkpoint = this.player.activeSpawn.object.id;
+            // if (this.player.activeSpawn.object.id > this.stats.checkpoint) this.stats.checkpoint = this.player.activeSpawn.object.id;
             // console.log(this.stats)
         //
 
