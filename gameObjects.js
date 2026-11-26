@@ -935,8 +935,8 @@ export class Player extends physicsObject {
         // death
             if (this.health <= 0 && this.deathTimer == -1) {
                 this.deathTimer = 2000;
-                if (this.checkpointDeaths[this.spawnPoint.id] == undefined) this.checkpointDeaths[this.spawnPoint.id] = 0
-                this.checkpointDeaths[this.spawnPoint.id]++
+                if (this.checkpointDeaths[this.activeSpawn.object.id] == undefined) this.checkpointDeaths[this.activeSpawn.object.id] = 0
+                this.checkpointDeaths[this.activeSpawn.object.id]++
                 this.totalDeaths++
             }
             if (this.deathTimer != -1) this.deathTimer -= deltaTime * 1000;
